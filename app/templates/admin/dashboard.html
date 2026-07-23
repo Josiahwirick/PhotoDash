@@ -1,0 +1,13 @@
+{% extends "admin/base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<section class="page">
+  <h1>Dashboard</h1>
+  <p class="lede">Manage the family frame from any device on your network.</p>
+  <div class="stats">
+    <a class="stat" href="{{ url_for('admin.photos') }}"><strong>{{ photo_count }}</strong><span>Photos</span></a>
+    <a class="stat" href="{{ url_for('admin.people') }}"><strong>{{ people_count }}</strong><span>People</span></a>
+    <a class="stat" href="{{ url_for('admin.calendar') }}"><strong>{{ entry_count }}</strong><span>Entries</span></a>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,56 @@
+{% extends "admin/base.html" %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+<section class="page">
+  <h1>Settings</h1>
+  <p class="lede">Photo timing, storage path, and weather location.</p>
+
+  <form class="card-form" method="post" action="{{ url_for('admin.settings_save') }}">
+    <label>
+      Photo cycle interval (seconds)
+      <input type="number" name="photo_interval_seconds" min="5" max="600"
+             value="{{ settings.get('photo_interval_seconds', '30') }}" required>
+    </label>
+    <label>
+      Frame data poll interval (seconds)
+      <input type="number" name="frame_poll_seconds" min="10" max="600"
+             value="{{ settings.get('frame_poll_seconds', '60') }}" required>
+    </label>
+    <label>
+      Photo storage path
+      <input type="text" name="storage_path" value="{{ settings.get('storage_path', '') }}"
+             placeholder="/mnt/usb/photodash/photos">
+    </label>
+    <label>
+      Weather latitude
+      <input type="text" name="weather_latitude" value="{{ settings.get('weather_latitude', '') }}" placeholder="40.7128">
+    </label>
+    <label>
+      Weather longitude
+      <input type="text" name="weather_longitude" value="{{ settings.get('weather_longitude', '') }}" placeholder="-74.0060">
+    </label>
+    <label>
+      Timezone (IANA)
+      <input type="text" name="weather_timezone" value="{{ settings.get('weather_timezone', 'America/New_York') }}" required>
+    </label>
+    <label>
+      Temperature unit
+      <select name="temperature_unit">
+        <option value="F" {% if settings.get('temperature_unit') == 'F' %}selected{% endif %}>°F</option>
+        <option value="C" {% if settings.get('temperature_unit') == 'C' %}selected{% endif %}>°C</option>
+      </select>
+    </label>
+
+    <fieldset>
+      <legend>Change admin password</legend>
+      <label>New password <input type="password" name="new_password" autocomplete="new-password"></label>
+      <label>Confirm <input type="password" name="confirm_password" autocomplete="new-password"></label>
+    </fieldset>
+
+    <div class="row-actions">
+      <button type="submit" class="btn">Save settings</button>
+      <button type="submit" class="btn btn--ghost" name="refresh_weather" value="1">Save &amp; refresh weather</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

@@ -1,0 +1,58 @@
+{% extends "admin/base.html" %}
+{% block title %}Calendar{% endblock %}
+{% block content %}
+<section class="page">
+  <h1>Calendar</h1>
+  <p class="lede">Chores, appointments, and reminders by date.</p>
+
+  <form class="card-form" method="post" action="{{ url_for('admin.calendar_create') }}">
+    <label>Date <input type="date" name="entry_date" required></label>
+    <label>Type
+      <select name="entry_type">
+        {% for t in entry_types %}
+        <option value="{{ t }}">{{ t|capitalize }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Person
+      <select name="person_id">
+        <option value="">— None —</option>
+        {% for person in people %}
+        <option value="{{ person.id }}">{{ person.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Text <input type="text" name="text" required maxlength="200"></label>
+    <button type="submit" class="btn">Add entry</button>
+  </form>
+
+  <ul class="list">
+    {% for entry in entries %}
+    <li class="list-item list-item--stack">
+      <form method="post" action="{{ url_for('admin.calendar_update', entry_id=entry.id) }}" class="inline-form wrap">
+        <input type="date" name="entry_date" value="{{ entry.entry_date }}" required>
+        <select name="entry_type">
+          {% for t in entry_types %}
+          <option value="{{ t }}" {% if entry.entry_type == t %}selected{% endif %}>{{ t|capitalize }}</option>
+          {% endfor %}
+        </select>
+        <select name="person_id">
+          <option value="">— None —</option>
+          {% for person in people %}
+          <option value="{{ person.id }}" {% if entry.person_id == person.id %}selected{% endif %}>{{ person.name }}</option>
+          {% endfor %}
+        </select>
+        <input type="text" name="text" value="{{ entry.text }}" required>
+        <input type="number" name="sort_order" value="{{ entry.sort_order }}" class="narrow" title="Sort order">
+        <button type="submit" class="btn btn--small">Save</button>
+      </form>
+      <form method="post" action="{{ url_for('admin.calendar_delete', entry_id=entry.id) }}" onsubmit="return confirm('Delete this entry?');">
+        <button type="submit" class="btn btn--small btn--danger">Delete</button>
+      </form>
+    </li>
+    {% else %}
+    <li class="empty">No calendar entries yet.</li>
+    {% endfor %}
+  </ul>
+</section>
+{% endblock %}

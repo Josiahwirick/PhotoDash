@@ -1,0 +1,21 @@
+<article class="photo-card" id="photo-{{ photo.id }}">
+  <img src="{{ url_for('media.media', filename=photo.filename) }}" alt="{{ photo.original_name }}" loading="lazy">
+  <div class="photo-card__meta">
+    <div class="truncate">{{ photo.original_name }}</div>
+    <div class="muted">{{ photo.width }}×{{ photo.height }}{% if photo.rotated %} · rotated{% endif %}</div>
+    <div class="row-actions">
+      <form hx-post="{{ url_for('admin.photos_toggle', photo_id=photo.id) }}"
+            hx-target="#photo-{{ photo.id }}"
+            hx-swap="outerHTML">
+        <button type="submit" class="btn btn--small">{{ "Hide" if photo.active else "Show" }}</button>
+      </form>
+      <form hx-post="{{ url_for('admin.photos_delete', photo_id=photo.id) }}"
+            hx-target="#photo-{{ photo.id }}"
+            hx-swap="outerHTML"
+            hx-confirm="Delete this photo?">
+        <button type="submit" class="btn btn--small btn--danger">Delete</button>
+      </form>
+    </div>
+    {% if not photo.active %}<span class="badge">Hidden</span>{% endif %}
+  </div>
+</article>
