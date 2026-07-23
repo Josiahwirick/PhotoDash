@@ -1,0 +1,38 @@
+#!/bin/sh
+# PhotoDash kiosk session — started by xinit via photodash-kiosk.service
+xset s off
+xset s noblank
+xset -dpms
+
+# Hide mouse pointer when idle (optional; ignore if missing)
+if command -v unclutter >/dev/null 2>&1; then
+  unclutter -idle 0.5 -root &
+fi
+
+if command -v matchbox-window-manager >/dev/null 2>&1; then
+  matchbox-window-manager -use_titlebar no &
+fi
+
+CHROMIUM=""
+for candidate in chromium-browser chromium google-chrome; do
+  if command -v "$candidate" >/dev/null 2>&1; then
+    CHROMIUM="$candidate"
+    break
+  fi
+done
+
+if [ -z "$CHROMIUM" ]; then
+  echo "No Chromium binary found" >&2
+  sleep 30
+  exit 1
+fi
+
+exec "$CHROMIUM" \
+  --kiosk \
+  --app=http://127.0.0.1:8080/ \
+  --check-for-update-interval=31536000 \
+  --disable-session-crashed-bubble \
+  --noerrdialogs \
+  --disable-infobars \
+  --disable-translate \
+  --autoplay-policy=no-user-gesture-required

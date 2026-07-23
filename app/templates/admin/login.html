@@ -1,0 +1,15 @@
+{% extends "admin/base.html" %}
+{% block title %}Login{% endblock %}
+{% block content %}
+<section class="login">
+  <h1>PhotoDash</h1>
+  <p class="lede">Admin access for this display.</p>
+  <form method="post" class="card-form">
+    <label>
+      Password
+      <input type="password" name="password" autofocus required autocomplete="current-password">
+    </label>
+    <button type="submit" class="btn">Sign in</button>
+  </form>
+</section>
+{% endblock %}

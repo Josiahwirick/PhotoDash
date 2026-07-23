@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Admin{% endblock %} · PhotoDash</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+  <script src="{{ url_for('static', filename='js/htmx.min.js') }}" defer></script>
+</head>
+<body class="admin">
+  {% if request.endpoint and request.endpoint != 'admin.login' %}
+  <header class="topbar">
+    <a class="brand" href="{{ url_for('admin.dashboard') }}">PhotoDash</a>
+    <nav class="nav">
+      <a href="{{ url_for('admin.photos') }}">Photos</a>
+      <a href="{{ url_for('admin.people') }}">People</a>
+      <a href="{{ url_for('admin.calendar') }}">Calendar</a>
+      <a href="{{ url_for('admin.settings') }}">Settings</a>
+      <a href="{{ url_for('frame.index') }}" target="_blank" rel="noopener">Frame</a>
+    </nav>
+    <form method="post" action="{{ url_for('admin.logout') }}">
+      <button type="submit" class="btn btn--ghost">Log out</button>
+    </form>
+  </header>
+  {% endif %}
+
+  <main class="main">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+      <ul class="flash-list">
+        {% for category, message in messages %}
+        <li class="flash flash--{{ category }}">{{ message }}</li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

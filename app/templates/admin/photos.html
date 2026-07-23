@@ -1,0 +1,24 @@
+{% extends "admin/base.html" %}
+{% block title %}Photos{% endblock %}
+{% block content %}
+<section class="page">
+  <h1>Photos</h1>
+  <p class="lede">Uploads are oriented and landscape shots are rotated 90° clockwise for the vertical strip.</p>
+
+  <form class="card-form" method="post" action="{{ url_for('admin.photos_upload') }}" enctype="multipart/form-data">
+    <label>
+      Upload photos
+      <input type="file" name="photos" accept="image/*" multiple required>
+    </label>
+    <button type="submit" class="btn">Upload</button>
+  </form>
+
+  <div class="photo-grid" id="photo-grid">
+    {% for photo in photos %}
+      {% include "admin/partials/photo_row.html" %}
+    {% else %}
+      <p class="empty">No photos yet.</p>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

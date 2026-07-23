@@ -1,0 +1,18 @@
+[Unit]
+Description=PhotoDash X11 kiosk (Chromium)
+After=photodash.service
+Requires=photodash.service
+
+[Service]
+Type=simple
+User=KIOSK_USER
+Environment=DISPLAY=:0
+Environment=HOME=KIOSK_HOME
+Environment=XAUTHORITY=KIOSK_HOME/.Xauthority
+ExecStartPre=/bin/sleep 2
+ExecStart=/usr/bin/xinit /etc/photodash/xinitrc -- :0 vt1 -nolisten tcp
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=graphical.target
