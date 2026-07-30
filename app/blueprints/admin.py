@@ -13,12 +13,19 @@ from flask import (
 )
 
 from app import auth
+from app.csrf import validate_csrf
+from app.helpers import today_local
 from app.models import calendar as calendar_model
 from app.models import people as people_model
 from app.models import photos as photos_model
 from app.models import settings as settings_model
 from app.services import photo_pipeline
 from app.services.weather_fetcher import fetch_and_cache
+from app.validation import (
+    normalize_hex_color,
+    parse_bounded_int,
+    validate_storage_path_setting,
+)
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -26,7 +33,9 @@ ENTRY_TYPES = ("chore", "appointment", "reminder")
 
 
 @bp.before_request
-def require_login():
+def protect_admin():
+    if request.method == "POST":
+        validate_csrf()
     if request.endpoint in ("admin.login", "admin.login_post"):
         return None
     if not auth.is_admin():
@@ -62,11 +71,12 @@ def logout():
 
 @bp.get("/")
 def dashboard():
+    today = today_local().isoformat()
     return render_template(
         "admin/dashboard.html",
         photo_count=len(photos_model.list_all()),
         people_count=len(people_model.list_people()),
-        entry_count=len(calendar_model.list_upcoming(1000)),
+        entry_count=len(calendar_model.list_from_date(today, 1000)),
     )
 
 
@@ -116,8 +126,7 @@ def photos_toggle(photo_id: int):
 def photos_delete(photo_id: int):
     row = photos_model.delete_photo(photo_id)
     if row:
-        root = photo_pipeline.resolve_storage_path(current_app.config["STORAGE_PATH"])
-        photo_pipeline.delete_stored_file(row["filename"], root)
+        photo_pipeline.delete_stored_file(row["filename"], current_app.config["STORAGE_PATH"])
     if request.headers.get("HX-Request"):
         return ""
     flash("Photo deleted.", "ok")
@@ -135,7 +144,11 @@ def people():
 @bp.post("/people")
 def people_create():
     name = (request.form.get("name") or "").strip()
-    color = (request.form.get("color") or "").strip() or None
+    color_raw = request.form.get("color")
+    color = normalize_hex_color(color_raw)
+    if color_raw and color_raw.strip() and color is None:
+        flash("Color must be a valid #RRGGBB value.", "error")
+        return redirect(url_for("admin.people"))
     if not name:
         flash("Name is required.", "error")
     else:
@@ -150,8 +163,17 @@ def people_create():
 @bp.post("/people/<int:person_id>")
 def people_update(person_id: int):
     name = (request.form.get("name") or "").strip()
-    color = (request.form.get("color") or "").strip() or None
-    sort_order = int(request.form.get("sort_order") or 0)
+    color_raw = request.form.get("color")
+    color = normalize_hex_color(color_raw)
+    if color_raw and color_raw.strip() and color is None:
+        flash("Color must be a valid #RRGGBB value.", "error")
+        return redirect(url_for("admin.people"))
+    sort_order = parse_bounded_int(
+        request.form.get("sort_order"),
+        default=0,
+        minimum=-9999,
+        maximum=9999,
+    )
     if name:
         people_model.update_person(person_id, name=name, color=color, sort_order=sort_order)
         flash("Person updated.", "ok")
@@ -170,9 +192,10 @@ def people_delete(person_id: int):
 
 @bp.get("/calendar")
 def calendar():
+    today = today_local().isoformat()
     return render_template(
         "admin/calendar.html",
-        entries=calendar_model.list_upcoming(200),
+        entries=calendar_model.list_from_date(today, 200),
         people=people_model.list_people(),
         entry_types=ENTRY_TYPES,
     )
@@ -202,7 +225,12 @@ def calendar_update(entry_id: int):
     text = (request.form.get("text") or "").strip()
     person_raw = request.form.get("person_id") or ""
     person_id = int(person_raw) if person_raw.isdigit() else None
-    sort_order = int(request.form.get("sort_order") or 0)
+    sort_order = parse_bounded_int(
+        request.form.get("sort_order"),
+        default=0,
+        minimum=-9999,
+        maximum=9999,
+    )
     if entry_type not in ENTRY_TYPES:
         entry_type = "chore"
     if entry_date and text:
@@ -235,20 +263,42 @@ def settings():
 
 @bp.post("/settings")
 def settings_save():
-    keys = [
-        "photo_interval_seconds",
-        "frame_poll_seconds",
-        "storage_path",
+    photo_interval = parse_bounded_int(
+        request.form.get("photo_interval_seconds"),
+        default=30,
+        minimum=5,
+        maximum=600,
+    )
+    frame_poll = parse_bounded_int(
+        request.form.get("frame_poll_seconds"),
+        default=60,
+        minimum=10,
+        maximum=600,
+    )
+
+    storage_raw = request.form.get("storage_path", "").strip()
+    storage_path, storage_err = validate_storage_path_setting(
+        storage_raw,
+        current_app.config["STORAGE_PATH"],
+    )
+    if storage_err:
+        flash(storage_err, "error")
+        return redirect(url_for("admin.settings"))
+
+    updates = {
+        "photo_interval_seconds": str(photo_interval),
+        "frame_poll_seconds": str(frame_poll),
+        "storage_path": storage_path,
+    }
+    for key in (
         "weather_latitude",
         "weather_longitude",
         "weather_timezone",
-        "temperature_unit",
-    ]
-    updates = {}
-    for key in keys:
+    ):
         if key in request.form:
             updates[key] = request.form.get(key, "").strip()
-    unit = updates.get("temperature_unit", "F").upper()
+
+    unit = (request.form.get("temperature_unit") or "F").upper()
     if unit not in ("C", "F"):
         unit = "F"
     updates["temperature_unit"] = unit

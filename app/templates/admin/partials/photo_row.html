@@ -7,12 +7,14 @@
       <form hx-post="{{ url_for('admin.photos_toggle', photo_id=photo.id) }}"
             hx-target="#photo-{{ photo.id }}"
             hx-swap="outerHTML">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="btn btn--small">{{ "Hide" if photo.active else "Show" }}</button>
       </form>
       <form hx-post="{{ url_for('admin.photos_delete', photo_id=photo.id) }}"
             hx-target="#photo-{{ photo.id }}"
             hx-swap="outerHTML"
             hx-confirm="Delete this photo?">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="btn btn--small btn--danger">Delete</button>
       </form>
     </div>

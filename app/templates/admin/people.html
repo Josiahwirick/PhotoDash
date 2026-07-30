@@ -6,6 +6,7 @@
   <p class="lede">Family members for chores and calendar entries.</p>
 
   <form class="card-form" method="post" action="{{ url_for('admin.people_create') }}">
+    {% include "admin/csrf_input.html" %}
     <label>Name <input type="text" name="name" required maxlength="80"></label>
     <label>Color <input type="color" name="color" value="#7cb89a"></label>
     <button type="submit" class="btn">Add person</button>
@@ -15,12 +16,14 @@
     {% for person in people %}
     <li class="list-item">
       <form method="post" action="{{ url_for('admin.people_update', person_id=person.id) }}" class="inline-form">
+        {% include "admin/csrf_input.html" %}
         <input type="text" name="name" value="{{ person.name }}" required>
         <input type="color" name="color" value="{{ person.color or '#7cb89a' }}">
         <input type="number" name="sort_order" value="{{ person.sort_order }}" class="narrow" title="Sort order">
         <button type="submit" class="btn btn--small">Save</button>
       </form>
       <form method="post" action="{{ url_for('admin.people_delete', person_id=person.id) }}" onsubmit="return confirm('Delete this person?');">
+        {% include "admin/csrf_input.html" %}
         <button type="submit" class="btn btn--small btn--danger">Delete</button>
       </form>
     </li>

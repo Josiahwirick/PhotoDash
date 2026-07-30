@@ -9,6 +9,7 @@ from app.models import calendar as calendar_model
 from app.models import photos as photos_model
 from app.models import settings as settings_model
 from app.models import weather as weather_model
+from app.validation import normalize_hex_color, parse_bounded_int
 
 
 def get_timezone() -> ZoneInfo:
@@ -58,7 +59,7 @@ def build_frame_payload() -> dict:
                 "id": row["id"],
                 "person_id": row["person_id"],
                 "person_name": row["person_name"],
-                "person_color": row["person_color"],
+                "person_color": normalize_hex_color(row["person_color"]),
                 "entry_type": row["entry_type"],
                 "text": row["text"],
             }
@@ -90,8 +91,18 @@ def build_frame_payload() -> dict:
             }
         )
 
-    interval = int(settings_model.get("photo_interval_seconds", "30") or "30")
-    poll = int(settings_model.get("frame_poll_seconds", "60") or "60")
+    interval = parse_bounded_int(
+        settings_model.get("photo_interval_seconds", "30"),
+        default=30,
+        minimum=5,
+        maximum=600,
+    )
+    poll = parse_bounded_int(
+        settings_model.get("frame_poll_seconds", "60"),
+        default=60,
+        minimum=10,
+        maximum=600,
+    )
 
     return {
         "today": today.isoformat(),

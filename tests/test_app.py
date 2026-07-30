@@ -7,8 +7,9 @@ from io import BytesIO
 
 from PIL import Image
 
-from app.helpers import rolling_week_dates
+from app.helpers import rolling_week_dates, today_local
 from app.services.weather_fetcher import map_wmo
+from tests.conftest import admin_post
 
 
 def test_health(client):
@@ -30,8 +31,9 @@ def test_admin_requires_login(client):
     assert "/admin/login" in res.headers["Location"]
 
 
-def test_admin_login(client):
-    res = client.post("/admin/login", data={"password": "testpass"}, follow_redirects=True)
+def test_admin_login(admin_client):
+    client, _token = admin_client
+    res = client.get("/admin/")
     assert res.status_code == 200
     assert b"Dashboard" in res.data
 
@@ -51,17 +53,19 @@ def test_wmo_map():
     assert map_wmo(None)[0] == "unknown"
 
 
-def test_photo_upload_rotates_landscape(app, client):
-    client.post("/admin/login", data={"password": "testpass"})
+def test_photo_upload_rotates_landscape(app, admin_client):
+    client, token = admin_client
 
     img = Image.new("RGB", (800, 400), color=(20, 80, 120))
     buf = BytesIO()
     img.save(buf, format="JPEG")
     buf.seek(0)
 
-    res = client.post(
+    res = admin_post(
+        client,
+        token,
         "/admin/photos/upload",
-        data={"photos": (buf, "wide.jpg")},
+        data={"photos": (buf, "wide.jpg"), "csrf_token": token},
         content_type="multipart/form-data",
         follow_redirects=True,
     )
@@ -78,16 +82,26 @@ def test_photo_upload_rotates_landscape(app, client):
         assert rows[0]["height"] == 800
 
 
-def test_people_and_calendar_crud(client):
-    client.post("/admin/login", data={"password": "testpass"})
-    client.post("/admin/people", data={"name": "Alex", "color": "#7cb89a"}, follow_redirects=True)
+def test_people_and_calendar_crud(app, admin_client):
+    client, token = admin_client
+    with app.app_context():
+        entry_date = today_local().isoformat()
+    admin_post(
+        client,
+        token,
+        "/admin/people",
+        data={"name": "Alex", "color": "#7cb89a"},
+        follow_redirects=True,
+    )
     res = client.get("/admin/people")
     assert b"Alex" in res.data
 
-    client.post(
+    admin_post(
+        client,
+        token,
         "/admin/calendar",
         data={
-            "entry_date": "2026-07-22",
+            "entry_date": entry_date,
             "entry_type": "chore",
             "person_id": "1",
             "text": "Take out trash",
@@ -101,3 +115,8 @@ def test_people_and_calendar_crud(client):
     assert "days" in frame
     assert isinstance(frame["photos"], list)
     assert len(frame["days"]) == 7
+
+
+def test_admin_post_rejects_missing_csrf(client):
+    res = client.post("/admin/login", data={"password": "testpass"})
+    assert res.status_code == 400

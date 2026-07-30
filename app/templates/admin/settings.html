@@ -6,6 +6,7 @@
   <p class="lede">Photo timing, storage path, and weather location.</p>
 
   <form class="card-form" method="post" action="{{ url_for('admin.settings_save') }}">
+    {% include "admin/csrf_input.html" %}
     <label>
       Photo cycle interval (seconds)
       <input type="number" name="photo_interval_seconds" min="5" max="600"
