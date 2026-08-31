@@ -46,8 +46,33 @@ def normalize_hex_color(value: str | None) -> str | None:
     return None
 
 
+def is_safe_stored_filename(filename: str) -> bool:
+    """True when filename is a plain basename safe to join under a storage root."""
+    if not filename or "/" in filename or "\\" in filename or filename.startswith("."):
+        return False
+    # Reject absolute paths (POSIX and Windows) that Path would treat as wholesale targets.
+    if Path(filename).is_absolute():
+        return False
+    return Path(filename).name == filename
+
+
+def _path_under_any(path: Path, roots: list[Path]) -> bool:
+    for root in roots:
+        try:
+            path.relative_to(root)
+            return True
+        except ValueError:
+            continue
+    return False
+
+
 def allowed_storage_roots(configured_fallback: Path) -> list[Path]:
-    """Directories where photo storage may be configured."""
+    """Directories where photo storage may be configured.
+
+    Static prefixes are always trusted. A DB-configured storage_path is only
+    added when it already sits under one of those prefixes, so a grandfathered
+    out-of-prefix path cannot widen the allowlist.
+    """
     roots: list[Path] = []
     seen: set[str] = set()
 
@@ -64,17 +89,25 @@ def allowed_storage_roots(configured_fallback: Path) -> list[Path]:
         seen.add(key)
         roots.append(resolved)
 
+    # Static / env-configured prefixes only — never trust DB values yet.
     add(configured_fallback)
     add(current_app.config.get("FALLBACK_STORAGE_PATH"))
     add(current_app.config.get("STORAGE_PATH"))
     add(BASE_DIR / "data")
-    configured = settings_model.get("storage_path") or ""
-    if configured.strip():
-        add(configured.strip())
     add("/var/lib/photodash")
     add("/mnt")
     if current_app.config.get("TESTING"):
         add("/tmp")
+
+    static_roots = list(roots)
+    configured = settings_model.get("storage_path") or ""
+    if configured.strip():
+        try:
+            configured_resolved = Path(configured.strip()).expanduser().resolve()
+        except OSError:
+            configured_resolved = None
+        if configured_resolved is not None and _path_under_any(configured_resolved, static_roots):
+            add(configured_resolved)
 
     return roots
 
@@ -99,11 +132,7 @@ def validate_storage_path_setting(value: str | None, configured_fallback: Path) 
     if not resolved.is_absolute():
         return "", "Storage path must be an absolute path."
 
-    for root in allowed_storage_roots(configured_fallback):
-        try:
-            resolved.relative_to(root)
-            return str(resolved), None
-        except ValueError:
-            continue
+    if _path_under_any(resolved, allowed_storage_roots(configured_fallback)):
+        return str(resolved), None
 
     return "", "Storage path must be under an allowed location (e.g. /mnt or /var/lib/photodash)."

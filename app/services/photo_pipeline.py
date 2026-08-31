@@ -12,12 +12,20 @@ from werkzeug.datastructures import FileStorage
 
 from app.models import photos as photos_model
 from app.models import settings as settings_model
-from app.validation import MAX_IMAGE_DIMENSION, MAX_IMAGE_PIXELS, allowed_storage_roots
+from app.validation import (
+    MAX_IMAGE_DIMENSION,
+    MAX_IMAGE_PIXELS,
+    allowed_storage_roots,
+    is_safe_stored_filename,
+)
 
 logger = logging.getLogger(__name__)
 
 JPEG_QUALITY = 85
 ALLOWED_IMAGE_FORMATS = frozenset({"JPEG", "PNG", "WEBP"})
+
+# Cap decompression bombs once per process (gunicorn worker), not per request.
+Image.MAX_IMAGE_PIXELS = MAX_IMAGE_PIXELS
 
 
 def resolve_storage_path(configured_fallback: Path) -> Path:
@@ -45,15 +53,11 @@ def resolve_storage_path(configured_fallback: Path) -> Path:
 
 def _load_and_validate_image(raw: bytes) -> Image.Image:
     """Decode image bytes with format and size limits."""
-    previous_limit = Image.MAX_IMAGE_PIXELS
-    Image.MAX_IMAGE_PIXELS = MAX_IMAGE_PIXELS
     try:
         image = Image.open(BytesIO(raw))
         image.load()
     except UnidentifiedImageError as exc:
         raise ValueError("Unsupported or corrupt image file.") from exc
-    finally:
-        Image.MAX_IMAGE_PIXELS = previous_limit
 
     if image.format not in ALLOWED_IMAGE_FORMATS:
         raise ValueError(f"Unsupported image type ({image.format or 'unknown'}). Use JPEG, PNG, or WebP.")
@@ -111,6 +115,9 @@ def process_and_store(file: FileStorage, storage_root: Path) -> int:
 
 def delete_stored_file(filename: str, configured_fallback: Path) -> None:
     """Remove a stored photo from every known storage root."""
+    if not is_safe_stored_filename(filename):
+        logger.warning("Refusing to delete unsafe photo filename: %r", filename)
+        return
     for root in allowed_storage_roots(configured_fallback):
         path = root / filename
         try:

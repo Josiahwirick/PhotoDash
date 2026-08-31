@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 from io import BytesIO
 from pathlib import Path
 
@@ -146,30 +147,79 @@ def test_photo_delete_searches_all_storage_roots(app, admin_client, tmp_path):
     assert not (primary / filename).exists()
 
 
+def test_delete_rejects_absolute_filename(app, tmp_path):
+    """Absolute filenames must not escape storage roots via Path join rules."""
+    victim = tmp_path / "should-survive.txt"
+    victim.write_text("keep me", encoding="utf-8")
+
+    with app.app_context():
+        from app.services.photo_pipeline import delete_stored_file
+
+        delete_stored_file(str(victim.resolve()), app.config["STORAGE_PATH"])
+        delete_stored_file("/etc/passwd", app.config["STORAGE_PATH"])
+        delete_stored_file("../escape.jpg", app.config["STORAGE_PATH"])
+        delete_stored_file(".hidden.jpg", app.config["STORAGE_PATH"])
+
+    assert victim.exists()
+    assert victim.read_text(encoding="utf-8") == "keep me"
+
+
+def test_out_of_prefix_storage_path_not_added_to_allowlist(app):
+    """A grandfathered DB path outside static prefixes must not widen the allowlist."""
+    outside = Path("/etc/photodash-grandfather-test")
+    with app.app_context():
+        from app.models import settings as settings_model
+        from app.validation import allowed_storage_roots, validate_storage_path_setting
+
+        settings_model.set("storage_path", str(outside))
+        roots = allowed_storage_roots(app.config["STORAGE_PATH"])
+        assert outside.resolve() not in roots
+
+        _, err = validate_storage_path_setting(
+            str(outside / "child"),
+            app.config["STORAGE_PATH"],
+        )
+        assert err is not None
+        assert "allowed location" in err
+
+
 def test_install_env_writer_quotes_special_chars(tmp_path):
     import shlex
-    import subprocess
 
+    script = Path(__file__).resolve().parents[1] / "scripts" / "write_env_file.py"
     env_file = tmp_path / "photodash.env"
-    secret = 'abc$(echo PWNED)def'
+    secret = "abc$(echo PWNED)def"
     storage = "/mnt/usb/my photos"
-    script = f"""
-import os, shlex
-from pathlib import Path
-path = Path({str(env_file)!r})
-pairs = {{
-    "SECRET_KEY": {secret!r},
-    "PHOTODASH_STORAGE_PATH": {storage!r},
-}}
-path.write_text("".join(f"{{k}}={{shlex.quote(v)}}\\n" for k, v in pairs.items()))
-"""
-    subprocess.run(["python3", "-c", script], check=True)
+    mixed = "it's a \"quote\" and $HOME and `id`"
+
+    subprocess.run(
+        [
+            sys.executable,
+            str(script),
+            str(env_file),
+            f"SECRET_KEY={secret}",
+            f"PHOTODASH_STORAGE_PATH={storage}",
+            f"MIXED={mixed}",
+        ],
+        check=True,
+    )
     content = env_file.read_text(encoding="utf-8")
-    assert content.startswith("SECRET_KEY='abc$(echo PWNED)def'\n")
+    assert "SECRET_KEY=" in content
+    assert "$(echo PWNED)" in content  # preserved as data, not executed
     proc = subprocess.run(
-        ["bash", "-c", f"set -a; source {shlex.quote(str(env_file))}; echo SECRET=$SECRET_KEY"],
+        [
+            "bash",
+            "-c",
+            f"set -a; source {shlex.quote(str(env_file))}; "
+            'printf "SECRET=%s\\n" "$SECRET_KEY"; '
+            'printf "MIXED=%s\\n" "$MIXED"; '
+            'printf "STORAGE=%s\\n" "$PHOTODASH_STORAGE_PATH"',
+        ],
         capture_output=True,
         text=True,
         check=True,
     )
-    assert proc.stdout.strip() == f"SECRET={secret}"
+    lines = proc.stdout.splitlines()
+    assert lines[0] == f"SECRET={secret}"
+    assert lines[1] == f"MIXED={mixed}"
+    assert lines[2] == f"STORAGE={storage}"
