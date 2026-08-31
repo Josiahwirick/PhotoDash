@@ -29,7 +29,6 @@ def set_password(password: str) -> None:
 
 
 def login_admin() -> None:
-    session.clear()
     session["admin_authenticated"] = True
     session.permanent = True
 

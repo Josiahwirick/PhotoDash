@@ -36,6 +36,21 @@ def list_upcoming(limit: int = 100) -> list[Row]:
     ).fetchall()
 
 
+def list_from_date(from_date: str, limit: int = 200) -> list[Row]:
+    """Entries on or after from_date (for admin UI)."""
+    return get_db().execute(
+        """
+        SELECT e.*, p.name AS person_name, p.color AS person_color
+        FROM calendar_entries e
+        LEFT JOIN people p ON p.id = e.person_id
+        WHERE e.entry_date >= ?
+        ORDER BY e.entry_date ASC, e.sort_order ASC, e.id ASC
+        LIMIT ?
+        """,
+        (from_date, limit),
+    ).fetchall()
+
+
 def get_entry(entry_id: int) -> Row | None:
     return get_db().execute(
         """

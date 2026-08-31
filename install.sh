@@ -173,21 +173,19 @@ configure_env() {
   mkdir -p "$(dirname "$ENV_FILE")" "$DATA_DIR" "$FALLBACK_STORAGE"
   mkdir -p "$storage_path" 2>/dev/null || true
 
-  cat > "$ENV_FILE" <<EOF
-SECRET_KEY=$SECRET_KEY
-PHOTODASH_PASSWORD=$admin_password
-PHOTODASH_DB_PATH=$DATA_DIR/photodash.db
-PHOTODASH_STORAGE_PATH=$storage_path
-PHOTODASH_FALLBACK_STORAGE_PATH=$FALLBACK_STORAGE
-PHOTODASH_HOST=0.0.0.0
-PHOTODASH_PORT=8080
-EOF
+  python3 "$REPO_ROOT/scripts/write_env_file.py" "$ENV_FILE" \
+    "SECRET_KEY=${SECRET_KEY}" \
+    "PHOTODASH_DB_PATH=${DATA_DIR}/photodash.db" \
+    "PHOTODASH_STORAGE_PATH=${storage_path}" \
+    "PHOTODASH_FALLBACK_STORAGE_PATH=${FALLBACK_STORAGE}" \
+    "PHOTODASH_HOST=0.0.0.0" \
+    "PHOTODASH_PORT=8080"
   chmod 600 "$ENV_FILE"
   chown root:photodash "$ENV_FILE" 2>/dev/null || true
   chown -R photodash:photodash "$DATA_DIR" "$FALLBACK_STORAGE"
   chown -R photodash:photodash "$storage_path" 2>/dev/null || true
 
-  # Export for later steps
+  # Bootstrap password is passed to migrate only (not persisted in the env file).
   export PHOTODASH_PASSWORD="$admin_password"
   export PHOTODASH_DB_PATH="$DATA_DIR/photodash.db"
   export PHOTODASH_STORAGE_PATH="$storage_path"
@@ -201,12 +199,12 @@ migrate_db() {
   # shellcheck disable=SC1090
   set -a; source "$ENV_FILE"; set +a
   sudo -u photodash env \
-    PHOTODASH_DB_PATH="$PHOTODASH_DB_PATH" \
-    PHOTODASH_PASSWORD="$PHOTODASH_PASSWORD" \
-    PHOTODASH_STORAGE_PATH="$PHOTODASH_STORAGE_PATH" \
+    PHOTODASH_DB_PATH="${PHOTODASH_DB_PATH:-$DATA_DIR/photodash.db}" \
+    PHOTODASH_PASSWORD="${PHOTODASH_PASSWORD:-}" \
+    PHOTODASH_STORAGE_PATH="${PHOTODASH_STORAGE_PATH:-}" \
     "$APP_ROOT/.venv/bin/python" "$APP_ROOT/scripts/migrate.py" \
-      --db "$PHOTODASH_DB_PATH" \
-      --password "$PHOTODASH_PASSWORD"
+      --db "${PHOTODASH_DB_PATH:-$DATA_DIR/photodash.db}" \
+      --password "${PHOTODASH_PASSWORD:-}"
 }
 
 persist_weather_settings() {

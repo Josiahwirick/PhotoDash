@@ -6,6 +6,7 @@
   <p class="lede">Uploads are oriented and landscape shots are rotated 90° clockwise for the vertical strip.</p>
 
   <form class="card-form" method="post" action="{{ url_for('admin.photos_upload') }}" enctype="multipart/form-data">
+    {% include "admin/csrf_input.html" %}
     <label>
       Upload photos
       <input type="file" name="photos" accept="image/*" multiple required>

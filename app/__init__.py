@@ -9,6 +9,7 @@ from flask import Flask
 
 from app import db
 from app.config import DEFAULT_SETTINGS, load_config
+from app.csrf import get_csrf_token
 from app.models import settings as settings_model
 
 
@@ -40,6 +41,10 @@ def create_app(config_overrides: dict | None = None) -> Flask:
     app.register_blueprint(frame_bp)
     app.register_blueprint(media_bp)
     app.register_blueprint(admin_bp)
+
+    @app.template_global()
+    def csrf_token() -> str:
+        return get_csrf_token()
 
     if not app.config.get("TESTING"):
         from app.services.scheduler import init_scheduler

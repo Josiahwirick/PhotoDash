@@ -6,6 +6,7 @@
   <p class="lede">Chores, appointments, and reminders by date.</p>
 
   <form class="card-form" method="post" action="{{ url_for('admin.calendar_create') }}">
+    {% include "admin/csrf_input.html" %}
     <label>Date <input type="date" name="entry_date" required></label>
     <label>Type
       <select name="entry_type">
@@ -30,6 +31,7 @@
     {% for entry in entries %}
     <li class="list-item list-item--stack">
       <form method="post" action="{{ url_for('admin.calendar_update', entry_id=entry.id) }}" class="inline-form wrap">
+        {% include "admin/csrf_input.html" %}
         <input type="date" name="entry_date" value="{{ entry.entry_date }}" required>
         <select name="entry_type">
           {% for t in entry_types %}
@@ -47,6 +49,7 @@
         <button type="submit" class="btn btn--small">Save</button>
       </form>
       <form method="post" action="{{ url_for('admin.calendar_delete', entry_id=entry.id) }}" onsubmit="return confirm('Delete this entry?');">
+        {% include "admin/csrf_input.html" %}
         <button type="submit" class="btn btn--small btn--danger">Delete</button>
       </form>
     </li>
