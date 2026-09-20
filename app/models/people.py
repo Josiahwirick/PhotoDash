@@ -17,6 +17,14 @@ def get_person(person_id: int) -> Row | None:
     return get_db().execute("SELECT * FROM people WHERE id = ?", (person_id,)).fetchone()
 
 
+def get_person_by_name(name: str) -> Row | None:
+    """Case-insensitive name lookup."""
+    return get_db().execute(
+        "SELECT * FROM people WHERE name = ? COLLATE NOCASE",
+        (name.strip(),),
+    ).fetchone()
+
+
 def create_person(name: str, color: str | None = None, sort_order: int = 0) -> int:
     db = get_db()
     cur = db.execute(

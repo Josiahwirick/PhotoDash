@@ -4,11 +4,13 @@
 #   sudo ./install.sh
 #   sudo ./install.sh --non-interactive
 #   sudo ./install.sh --no-kiosk
+#   sudo ./install.sh --with-discord
 #   sudo ./install.sh --update
 #
 # Non-interactive env overrides:
 #   PHOTODASH_PASSWORD, SECRET_KEY, PHOTODASH_STORAGE_PATH,
-#   PHOTODASH_WEATHER_LAT, PHOTODASH_WEATHER_LON, PHOTODASH_TIMEZONE
+#   PHOTODASH_WEATHER_LAT, PHOTODASH_WEATHER_LON, PHOTODASH_TIMEZONE,
+#   DISCORD_BOT_TOKEN, PHOTODASH_WEBHOOK_TOKEN, DISCORD_CHANNEL_ID
 
 set -euo pipefail
 
@@ -21,14 +23,16 @@ FALLBACK_STORAGE="${DATA_DIR}/photos"
 
 NON_INTERACTIVE=0
 NO_KIOSK=0
+WITH_DISCORD=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --non-interactive) NON_INTERACTIVE=1; shift ;;
     --no-kiosk) NO_KIOSK=1; shift ;;
+    --with-discord) WITH_DISCORD=1; shift ;;
     --update) shift ;; # same path; idempotent re-install
     -h|--help)
-      sed -n '2,12p' "$0"
+      sed -n '2,14p' "$0"
       exit 0
       ;;
     *)
@@ -300,4 +304,10 @@ migrate_db
 persist_weather_settings
 install_units
 wait_health
+
+if [[ "$WITH_DISCORD" -eq 1 ]] || [[ -n "${DISCORD_BOT_TOKEN:-}" ]]; then
+  log "Installing Discord bot"
+  bash "$REPO_ROOT/discord_bot/install.sh"
+fi
+
 print_summary

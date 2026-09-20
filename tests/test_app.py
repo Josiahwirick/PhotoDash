@@ -41,10 +41,10 @@ def test_admin_login(admin_client):
 def test_rolling_week_centered():
     center = date(2026, 7, 22)  # Wednesday
     days = rolling_week_dates(center)
-    assert len(days) == 7
-    assert days[3] == center
-    assert days[0] == date(2026, 7, 19)
-    assert days[6] == date(2026, 7, 25)
+    assert len(days) == 5
+    assert days[1] == center
+    assert days[0] == date(2026, 7, 21)
+    assert days[4] == date(2026, 7, 25)
 
 
 def test_wmo_map():
@@ -114,7 +114,7 @@ def test_people_and_calendar_crud(app, admin_client):
     frame = client.get("/api/frame").get_json()
     assert "days" in frame
     assert isinstance(frame["photos"], list)
-    assert len(frame["days"]) == 7
+    assert len(frame["days"]) == 5
 
 
 def test_admin_post_rejects_missing_csrf(client):

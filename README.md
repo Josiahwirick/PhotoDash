@@ -2,7 +2,7 @@
 
 Family dashboard / digital photo frame for Raspberry Pi 3 (Raspberry Pi OS Lite, headless).
 
-Full-screen kiosk view: rolling 7-day calendar (today centered) + vertical photo strip with crossfade. Configure everything from a shared-password admin UI on your LAN.
+Full-screen kiosk view: rolling 5-day calendar (yesterday through today+3) + vertical photo strip with crossfade. Configure everything from a shared-password admin UI on your LAN.
 
 ## Quick install (on the Pi)
 
@@ -25,10 +25,11 @@ Useful flags:
 ```bash
 sudo ./install.sh --no-kiosk              # app/admin only
 sudo ./install.sh --non-interactive       # use env defaults / existing env file
+sudo ./install.sh --with-discord          # also install Discord bot companion
 sudo ./install.sh --update                # re-sync code, deps, restart services
 ```
 
-Non-interactive variables: `PHOTODASH_PASSWORD`, `SECRET_KEY`, `PHOTODASH_STORAGE_PATH`, `PHOTODASH_WEATHER_LAT`, `PHOTODASH_WEATHER_LON`, `PHOTODASH_TIMEZONE`.
+Non-interactive variables: `PHOTODASH_PASSWORD`, `SECRET_KEY`, `PHOTODASH_STORAGE_PATH`, `PHOTODASH_WEATHER_LAT`, `PHOTODASH_WEATHER_LON`, `PHOTODASH_TIMEZONE`, `DISCORD_BOT_TOKEN`, `PHOTODASH_WEBHOOK_TOKEN`, `DISCORD_CHANNEL_ID`.
 
 After install:
 
@@ -36,6 +37,52 @@ After install:
 - Admin: `http://<pi-ip>:8080/admin` (or `http://<hostname>.local:8080/admin`)
 
 Point **Settings → storage path** at a USB mount (default `/mnt/usb/photodash/photos`) to reduce SD wear. Set weather lat/lon + timezone so the calendar strip can show conditions.
+
+## Webhook (people & calendar without admin UI)
+
+`POST /api/webhook` accepts structured JSON and/or free-text. Authenticate with:
+
+- `Authorization: Bearer <token>`, or
+- `X-PhotoDash-Token: <token>`
+
+The token is shown under **Admin → Settings** (regenerate anytime). Optional env override: `PHOTODASH_WEBHOOK_TOKEN`.
+
+```bash
+curl -s -X POST http://127.0.0.1:8080/api/webhook \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"text":"chore tomorrow: take out trash for Estelle"}'
+```
+
+Structured example:
+
+```json
+{
+  "intent": "calendar",
+  "entry_type": "appointment",
+  "entry_date": "2026-09-20",
+  "text": "dentist",
+  "person": "Estelle"
+}
+```
+
+Example phrases: `add person Estelle #7cb89a`, `appointment Friday dentist`, `reminder today pack lunch`.
+
+## Discord bot
+
+Outbound gateway bot (works behind NAT / Tailscale). Your family can DM the bot instead of using the admin console.
+
+1. Create a Discord application → Bot → enable **Message Content Intent**.
+2. Invite the bot (DM + Send Messages).
+3. On the Pi:
+
+```bash
+sudo DISCORD_BOT_TOKEN=... ./discord_bot/install.sh
+```
+
+Or `sudo ./install.sh --with-discord` with `DISCORD_BOT_TOKEN` set. Config: `/etc/photodash-discord.env`. Logs: `journalctl -u photodash-discord -f`.
+
+Optional `DISCORD_CHANNEL_ID` also accepts messages in one guild channel.
 
 ## Local development
 
@@ -65,7 +112,8 @@ pytest -q
 
 | Path | Role |
 |------|------|
-| `app/` | Flask app (frame, admin, media, weather job) |
+| `app/` | Flask app (frame, admin, media, webhook, weather job) |
+| `discord_bot/` | Optional Discord gateway companion |
 | `deploy/` | systemd units + `xinitrc` |
 | `install.sh` | Pi installer |
 | `scripts/migrate.py` | DB migrate CLI |
@@ -74,6 +122,7 @@ pytest -q
 
 - `photodash.service` — gunicorn on `:8080`
 - `photodash-kiosk.service` — `xinit` → Chromium `--kiosk` (after app)
+- `photodash-discord.service` — Discord bot (optional)
 
 Screen blanking is disabled in `deploy/xinitrc` via `xset s off -dpms`.
 

@@ -7,12 +7,24 @@
   const empty = document.getElementById("photos-empty");
   const calendar = document.getElementById("calendar");
 
-  let photos = Array.isArray(window.PHOTODASH_PHOTOS) ? window.PHOTODASH_PHOTOS.slice() : [];
+  let photos = Array.isArray(window.PHOTODASH_PHOTOS)
+    ? shuffleInPlace(window.PHOTODASH_PHOTOS.slice())
+    : [];
   let index = 0;
   let showingA = true;
   let intervalMs = Math.max(5, Number(frame.dataset.interval || 30)) * 1000;
   let pollMs = Math.max(10, Number(frame.dataset.poll || 60)) * 1000;
   let cycleTimer = null;
+
+  function shuffleInPlace(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const tmp = arr[i];
+      arr[i] = arr[j];
+      arr[j] = tmp;
+    }
+    return arr;
+  }
 
   function showEmpty(on) {
     if (!empty) return;
@@ -172,7 +184,7 @@
           }
         }
         if (photosChanged(data.photos)) {
-          photos = data.photos.slice();
+          photos = shuffleInPlace(data.photos.slice());
           index = 0;
           restartCycle(data.photo_interval_seconds || frame.dataset.interval);
         } else if (

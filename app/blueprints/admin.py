@@ -13,6 +13,7 @@ from flask import (
 )
 
 from app import auth
+from app.blueprints.webhook import get_webhook_token, regenerate_webhook_token
 from app.csrf import validate_csrf
 from app.helpers import today_local
 from app.models import calendar as calendar_model
@@ -258,7 +259,25 @@ def calendar_delete(entry_id: int):
 
 @bp.get("/settings")
 def settings():
-    return render_template("admin/settings.html", settings=settings_model.get_all())
+    all_settings = settings_model.get_all()
+    token = get_webhook_token()
+    masked = ""
+    if token:
+        masked = token[:4] + "…" + token[-4:] if len(token) > 8 else "••••"
+    return render_template(
+        "admin/settings.html",
+        settings=all_settings,
+        webhook_token_masked=masked,
+        webhook_token_full=token,
+        webhook_token_configured=bool(token),
+    )
+
+
+@bp.post("/settings/webhook-token/regenerate")
+def settings_regenerate_webhook_token():
+    regenerate_webhook_token()
+    flash("Webhook token regenerated. Update Discord / automations with the new token.", "ok")
+    return redirect(url_for("admin.settings"))
 
 
 @bp.post("/settings")

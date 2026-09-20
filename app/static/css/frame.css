@@ -31,7 +31,8 @@ body {
 
 .frame {
   display: grid;
-  grid-template-columns: 1.45fr 0.55fr;
+  /* Give the photo strip nearly half the frame */
+  grid-template-columns: 1.05fr 0.95fr;
   width: 100vw;
   height: 100vh;
   background:
@@ -42,9 +43,9 @@ body {
 
 .calendar {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 0.55rem;
-  padding: 1rem 0.85rem 1rem 1rem;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.45rem;
+  padding: 0.75rem 0.55rem 0.75rem 0.75rem;
   min-width: 0;
 }
 
@@ -74,13 +75,13 @@ body {
 
 .day__weekday {
   font-family: var(--font-display);
-  font-size: clamp(0.85rem, 1.4vw, 1.15rem);
+  font-size: clamp(calc(0.85rem + 5px), calc(1.4vw + 5px), calc(1.15rem + 5px));
   letter-spacing: 0.08em;
   font-weight: 600;
 }
 
 .day__date {
-  font-size: clamp(0.65rem, 1vw, 0.85rem);
+  font-size: clamp(calc(0.65rem + 5px), calc(1vw + 5px), calc(0.85rem + 5px));
   color: var(--muted);
   margin-top: 0.15rem;
 }
@@ -97,7 +98,7 @@ body {
   padding: 0.35rem 0 0.55rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   margin-bottom: 0.45rem;
-  font-size: clamp(0.6rem, 0.95vw, 0.78rem);
+  font-size: clamp(calc(0.6rem + 5px), calc(0.95vw + 5px), calc(0.78rem + 5px));
   color: var(--muted);
 }
 
@@ -170,7 +171,7 @@ body {
 }
 
 .entry__person {
-  font-size: clamp(0.58rem, 0.9vw, 0.72rem);
+  font-size: clamp(calc(0.58rem + 5px), calc(0.9vw + 5px), calc(0.72rem + 5px));
   font-weight: 700;
   letter-spacing: 0.02em;
   color: var(--person-color, #d7e4ec);
@@ -178,7 +179,7 @@ body {
 }
 
 .entry__text {
-  font-size: clamp(0.58rem, 0.9vw, 0.74rem);
+  font-size: clamp(calc(0.58rem + 5px), calc(0.9vw + 5px), calc(0.74rem + 5px));
   line-height: 1.25;
   color: #d5dee4;
   word-break: break-word;
@@ -200,6 +201,7 @@ body {
 .photos__img {
   position: absolute;
   inset: 0;
+  z-index: 1;
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -216,6 +218,7 @@ body {
 .photos__empty {
   position: absolute;
   inset: 0;
+  z-index: 2;
   display: grid;
   place-items: center;
   color: var(--muted);
@@ -223,12 +226,18 @@ body {
   letter-spacing: 0.04em;
   padding: 1rem;
   text-align: center;
+  pointer-events: none;
+}
+
+/* Author `display: grid` would otherwise override the [hidden] UA rule. */
+.photos__empty[hidden] {
+  display: none !important;
 }
 
 @media (max-aspect-ratio: 4/3) {
   .frame {
     grid-template-columns: 1fr;
-    grid-template-rows: 1.2fr 0.8fr;
+    grid-template-rows: 0.95fr 1.05fr;
   }
 
   .photos {

@@ -25,9 +25,9 @@ def today_local() -> date:
 
 
 def rolling_week_dates(center: date | None = None) -> list[date]:
-    """Seven days centered on today: d-3 … d+3."""
+    """Five days with today near the start: yesterday … today+3."""
     center = center or today_local()
-    return [center + timedelta(days=offset) for offset in range(-3, 4)]
+    return [center + timedelta(days=offset) for offset in range(-1, 4)]
 
 
 def c_to_f(celsius: float | None) -> float | None:
@@ -66,7 +66,7 @@ def build_frame_payload() -> dict:
         )
 
     day_columns = []
-    today = days[3]  # center
+    today = today_local()
     for d in days:
         key = d.isoformat()
         w = weather_by_date.get(key)

@@ -54,6 +54,24 @@ def migrate(db_path: Path | str, bootstrap_password: str | None = None) -> None:
                 ("admin_password_hash", generate_password_hash(password)),
             )
 
+        import secrets as _secrets
+
+        token_row = conn.execute(
+            "SELECT value FROM settings WHERE key = 'webhook_token'"
+        ).fetchone()
+        env_token = (os.environ.get("PHOTODASH_WEBHOOK_TOKEN") or "").strip()
+        if token_row is None and not env_token:
+            conn.execute(
+                "INSERT INTO settings (key, value) VALUES (?, ?)",
+                ("webhook_token", _secrets.token_urlsafe(32)),
+            )
+        elif env_token and (token_row is None or not (token_row["value"] or "").strip()):
+            conn.execute(
+                "INSERT INTO settings (key, value) VALUES (?, ?) "
+                "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                ("webhook_token", env_token),
+            )
+
         conn.commit()
     finally:
         conn.close()

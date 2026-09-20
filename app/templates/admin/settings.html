@@ -53,5 +53,35 @@
       <button type="submit" class="btn btn--ghost" name="refresh_weather" value="1">Save &amp; refresh weather</button>
     </div>
   </form>
+
+  <section class="card-form" style="margin-top: 1.5rem;">
+    <h2>Webhook</h2>
+    <p class="lede">
+      Add people and calendar entries without the admin UI via
+      <code>POST /api/webhook</code> (used by the Discord bot, Shortcuts, or curl).
+      Discord bot tokens live in <code>/etc/photodash-discord.env</code>, not here.
+    </p>
+    <label>
+      Token ({{ webhook_token_masked if webhook_token_configured else "not set" }})
+      <input type="text" readonly value="{{ webhook_token_full }}"
+             onclick="this.select()" autocomplete="off" spellcheck="false">
+    </label>
+    <p class="lede">Example phrases the webhook understands:</p>
+    <ul>
+      <li><code>add person Estelle #7cb89a</code></li>
+      <li><code>chore tomorrow: take out trash for Estelle</code></li>
+      <li><code>appointment Friday dentist</code></li>
+      <li><code>reminder today pack lunch</code></li>
+    </ul>
+    <pre class="lede" style="white-space: pre-wrap; font-size: 0.85em;">curl -s -X POST http://127.0.0.1:8080/api/webhook \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"text":"chore tomorrow: take out trash for Estelle"}'</pre>
+    <form method="post" action="{{ url_for('admin.settings_regenerate_webhook_token') }}"
+          onsubmit="return confirm('Regenerate webhook token? Existing Discord/automations must be updated.');">
+      {% include "admin/csrf_input.html" %}
+      <button type="submit" class="btn btn--ghost">Regenerate token</button>
+    </form>
+  </section>
 </section>
 {% endblock %}
