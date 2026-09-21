@@ -264,12 +264,19 @@ def settings():
     masked = ""
     if token:
         masked = token[:4] + "…" + token[-4:] if len(token) > 8 else "••••"
+    lofi_installed = (all_settings.get("lofi_installed") or "0").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
     return render_template(
         "admin/settings.html",
         settings=all_settings,
         webhook_token_masked=masked,
         webhook_token_full=token,
         webhook_token_configured=bool(token),
+        lofi_installed=lofi_installed,
     )
 
 
@@ -321,6 +328,31 @@ def settings_save():
     if unit not in ("C", "F"):
         unit = "F"
     updates["temperature_unit"] = unit
+
+    font_boost = parse_bounded_int(
+        request.form.get("calendar_font_boost"),
+        default=5,
+        minimum=0,
+        maximum=16,
+    )
+    updates["calendar_font_boost"] = str(font_boost)
+
+    lofi_installed = (settings_model.get("lofi_installed", "0") or "0").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+    if lofi_installed:
+        lofi_raw = (request.form.get("lofi_enabled") or "0").strip().lower()
+        updates["lofi_enabled"] = "1" if lofi_raw in ("1", "true", "yes", "on") else "0"
+        vol = parse_bounded_int(
+            request.form.get("lofi_volume_db"),
+            default=-8,
+            minimum=-30,
+            maximum=6,
+        )
+        updates["lofi_volume_db"] = str(vol)
     settings_model.set_many(updates)
 
     new_password = request.form.get("new_password") or ""

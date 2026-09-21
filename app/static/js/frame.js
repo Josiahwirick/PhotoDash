@@ -5,12 +5,18 @@
   const imgA = document.querySelector(".photos__img--a");
   const imgB = document.querySelector(".photos__img--b");
   const empty = document.getElementById("photos-empty");
-  const calendar = document.getElementById("calendar");
+  const calendar = document.getElementById("calendar-days") || document.getElementById("calendar");
+
+  // Avoid re-showing the same photo within this window when the library is large enough.
+  const COOLDOWN_MS = 15 * 60 * 1000;
 
   let photos = Array.isArray(window.PHOTODASH_PHOTOS)
-    ? shuffleInPlace(window.PHOTODASH_PHOTOS.slice())
+    ? window.PHOTODASH_PHOTOS.slice()
     : [];
-  let index = 0;
+  /** @type {Map<number|string, number>} photo id → last shown timestamp */
+  let lastShown = new Map();
+  /** Upcoming photo ids in display order */
+  let queue = [];
   let showingA = true;
   let intervalMs = Math.max(5, Number(frame.dataset.interval || 30)) * 1000;
   let pollMs = Math.max(10, Number(frame.dataset.poll || 60)) * 1000;
@@ -24,6 +30,56 @@
       arr[j] = tmp;
     }
     return arr;
+  }
+
+  function photoKey(photo) {
+    return photo && photo.id != null ? photo.id : photo && photo.url;
+  }
+
+  function byId(list) {
+    const map = new Map();
+    (list || []).forEach(function (p) {
+      map.set(photoKey(p), p);
+    });
+    return map;
+  }
+
+  function rebuildQueue() {
+    const now = Date.now();
+    const cooled = [];
+    const warm = [];
+    photos.forEach(function (p) {
+      const key = photoKey(p);
+      const seen = lastShown.get(key);
+      if (seen == null || now - seen >= COOLDOWN_MS) cooled.push(p);
+      else warm.push(p);
+    });
+    // Prefer cooled photos; only use recently shown ones if the cool pool is empty
+    // (small library) or after exhausting cool ones — sort warm by oldest first.
+    warm.sort(function (a, b) {
+      return (lastShown.get(photoKey(a)) || 0) - (lastShown.get(photoKey(b)) || 0);
+    });
+    const next = shuffleInPlace(cooled.slice()).concat(warm);
+    queue = next.map(photoKey);
+  }
+
+  function takeNextPhoto() {
+    if (!photos.length) return null;
+    if (!queue.length) rebuildQueue();
+
+    const lookup = byId(photos);
+    // Drop stale queue entries (deleted / deactivated since last rebuild)
+    while (queue.length && !lookup.has(queue[0])) queue.shift();
+    if (!queue.length) {
+      rebuildQueue();
+      while (queue.length && !lookup.has(queue[0])) queue.shift();
+    }
+    if (!queue.length) return null;
+
+    const key = queue.shift();
+    const photo = lookup.get(key);
+    if (photo) lastShown.set(key, Date.now());
+    return photo;
   }
 
   function showEmpty(on) {
@@ -52,12 +108,11 @@
   }
 
   function tick() {
-    if (!photos.length) {
+    const photo = takeNextPhoto();
+    if (!photo) {
       setActive(null);
       return;
     }
-    const photo = photos[index % photos.length];
-    index = (index + 1) % photos.length;
     setActive(photo.url);
   }
 
@@ -156,15 +211,42 @@
     return escapeHtml(value).replace(/'/g, "&#39;");
   }
 
+  /** Order-independent: only react when the set of photos changes. */
   function photosChanged(next) {
     if (!Array.isArray(next)) return false;
     if (next.length !== photos.length) return true;
+    const current = new Set(photos.map(photoKey));
     for (let i = 0; i < next.length; i++) {
-      if (!photos[i] || photos[i].id !== next[i].id || photos[i].url !== next[i].url) {
-        return true;
-      }
+      if (!current.has(photoKey(next[i]))) return true;
     }
     return false;
+  }
+
+  function applyPhotoList(next) {
+    const prevKeys = new Set(photos.map(photoKey));
+    photos = next.slice();
+    // Drop history for removed photos; keep timestamps for ones that remain.
+    Array.from(lastShown.keys()).forEach(function (key) {
+      if (!photos.some(function (p) {
+        return photoKey(p) === key;
+      })) {
+        lastShown.delete(key);
+      }
+    });
+    // Rebuild queue when membership changes; preserve cooldown memory.
+    const added = photos.some(function (p) {
+      return !prevKeys.has(photoKey(p));
+    });
+    if (added || queue.length === 0) {
+      rebuildQueue();
+    } else {
+      // Filter queue to still-valid ids without full reshuffle
+      const lookup = byId(photos);
+      queue = queue.filter(function (key) {
+        return lookup.has(key);
+      });
+      if (!queue.length) rebuildQueue();
+    }
   }
 
   function poll() {
@@ -184,8 +266,7 @@
           }
         }
         if (photosChanged(data.photos)) {
-          photos = shuffleInPlace(data.photos.slice());
-          index = 0;
+          applyPhotoList(data.photos);
           restartCycle(data.photo_interval_seconds || frame.dataset.interval);
         } else if (
           data.photo_interval_seconds &&
@@ -199,6 +280,7 @@
       });
   }
 
+  rebuildQueue();
   let pollTimer = setInterval(poll, pollMs);
   restartCycle();
 })();

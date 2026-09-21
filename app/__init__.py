@@ -36,6 +36,7 @@ def create_app(config_overrides: dict | None = None) -> Flask:
 
     from app.blueprints.admin import bp as admin_bp
     from app.blueprints.frame import bp as frame_bp
+    from app.blueprints.lofi import bp as lofi_bp
     from app.blueprints.media import bp as media_bp
     from app.blueprints.webhook import bp as webhook_bp
     from app.blueprints.webhook import ensure_webhook_token
@@ -44,6 +45,7 @@ def create_app(config_overrides: dict | None = None) -> Flask:
     app.register_blueprint(media_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(webhook_bp)
+    app.register_blueprint(lofi_bp)
 
     with app.app_context():
         ensure_webhook_token()

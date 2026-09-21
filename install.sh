@@ -5,12 +5,14 @@
 #   sudo ./install.sh --non-interactive
 #   sudo ./install.sh --no-kiosk
 #   sudo ./install.sh --with-discord
+#   sudo ./install.sh --with-lofi
 #   sudo ./install.sh --update
 #
 # Non-interactive env overrides:
 #   PHOTODASH_PASSWORD, SECRET_KEY, PHOTODASH_STORAGE_PATH,
 #   PHOTODASH_WEATHER_LAT, PHOTODASH_WEATHER_LON, PHOTODASH_TIMEZONE,
-#   DISCORD_BOT_TOKEN, PHOTODASH_WEBHOOK_TOKEN, DISCORD_CHANNEL_ID
+#   DISCORD_BOT_TOKEN, PHOTODASH_WEBHOOK_TOKEN, DISCORD_CHANNEL_ID,
+#   PHOTODASH_WITH_DISCORD=1, PHOTODASH_WITH_LOFI=1
 
 set -euo pipefail
 
@@ -24,15 +26,19 @@ FALLBACK_STORAGE="${DATA_DIR}/photos"
 NON_INTERACTIVE=0
 NO_KIOSK=0
 WITH_DISCORD=0
+WITH_LOFI=0
+DISCORD_ASKED=0
+LOFI_ASKED=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --non-interactive) NON_INTERACTIVE=1; shift ;;
     --no-kiosk) NO_KIOSK=1; shift ;;
-    --with-discord) WITH_DISCORD=1; shift ;;
+    --with-discord) WITH_DISCORD=1; DISCORD_ASKED=1; shift ;;
+    --with-lofi) WITH_LOFI=1; LOFI_ASKED=1; shift ;;
     --update) shift ;; # same path; idempotent re-install
     -h|--help)
-      sed -n '2,14p' "$0"
+      sed -n '2,16p' "$0"
       exit 0
       ;;
     *)
@@ -41,6 +47,11 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+# Env can also opt in during non-interactive installs
+if [[ "${PHOTODASH_WITH_DISCORD:-}" == "1" ]]; then WITH_DISCORD=1; DISCORD_ASKED=1; fi
+if [[ -n "${DISCORD_BOT_TOKEN:-}" ]]; then WITH_DISCORD=1; DISCORD_ASKED=1; fi
+if [[ "${PHOTODASH_WITH_LOFI:-}" == "1" ]]; then WITH_LOFI=1; LOFI_ASKED=1; fi
 
 log() { printf '\n==> %s\n' "$*"; }
 die() { echo "ERROR: $*" >&2; exit 1; }
@@ -305,9 +316,35 @@ persist_weather_settings
 install_units
 wait_health
 
-if [[ "$WITH_DISCORD" -eq 1 ]] || [[ -n "${DISCORD_BOT_TOKEN:-}" ]]; then
+prompt_optional_features() {
+  if [[ "$NON_INTERACTIVE" -eq 1 ]]; then
+    return
+  fi
+  local reply
+  if [[ "$DISCORD_ASKED" -eq 0 ]]; then
+    read -r -p "Install Discord bot companion? [y/N]: " reply || true
+    case "${reply:-}" in
+      y|Y|yes|YES) WITH_DISCORD=1 ;;
+    esac
+  fi
+  if [[ "$LOFI_ASKED" -eq 0 ]]; then
+    read -r -p "Install lofi stream + visualizer strip (CLIAMP)? [y/N]: " reply || true
+    case "${reply:-}" in
+      y|Y|yes|YES) WITH_LOFI=1 ;;
+    esac
+  fi
+}
+
+prompt_optional_features
+
+if [[ "$WITH_DISCORD" -eq 1 ]]; then
   log "Installing Discord bot"
   bash "$REPO_ROOT/discord_bot/install.sh"
+fi
+
+if [[ "$WITH_LOFI" -eq 1 ]]; then
+  log "Installing lofi stream companion"
+  bash "$REPO_ROOT/scripts/install_lofi.sh"
 fi
 
 print_summary

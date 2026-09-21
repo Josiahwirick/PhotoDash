@@ -19,6 +19,7 @@ HELP_TEXT = """PhotoDash bot — send a message like:
 • `chore tomorrow: take out trash for Estelle`
 • `appointment Friday dentist`
 • `reminder today pack lunch`
+• `stop stream` / `start stream` (lofi)
 
 Or say `help` for this message.
 """
@@ -67,6 +68,12 @@ def post_webhook(text: str) -> tuple[bool, str]:
             f"Added {result.get('entry_type')} on {result.get('entry_date')}: "
             f"{result.get('text')}{suffix}."
         )
+    if action == "stream_control":
+        if result.get("state") == "stopped":
+            return True, "Lofi stream paused."
+        if result.get("state") == "playing":
+            return True, "Lofi stream playing."
+        return True, f"Stream {result.get('command', 'updated')}."
     return True, "Done."
 
 

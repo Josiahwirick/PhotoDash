@@ -107,3 +107,45 @@ def test_webhook_x_token_header(client, app):
         json={"text": "add person Kiddo"},
     )
     assert res.status_code == 200
+
+
+def test_webhook_stream_stop_start(client, app, tmp_path, monkeypatch):
+    import os
+    import stat
+    import textwrap
+
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    script = bin_dir / "cliamp"
+    script.write_text(
+        textwrap.dedent(
+            """\
+            #!/bin/sh
+            echo "ok $1" >&2
+            exit 0
+            """
+        )
+    )
+    script.chmod(script.stat().st_mode | stat.S_IEXEC)
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}")
+
+    with app.app_context():
+        settings_model.set("webhook_token", "secret-token")
+        app.config["CLIAMP_BIN"] = str(script)
+
+    stop = client.post(
+        "/api/webhook",
+        headers=_auth_headers("secret-token"),
+        json={"text": "stop stream"},
+    )
+    assert stop.status_code == 200
+    assert stop.get_json()["action"] == "stream_control"
+    assert stop.get_json()["result"]["state"] == "stopped"
+
+    start = client.post(
+        "/api/webhook",
+        headers=_auth_headers("secret-token"),
+        json={"intent": "stream", "command": "start"},
+    )
+    assert start.status_code == 200
+    assert start.get_json()["result"]["state"] == "playing"
