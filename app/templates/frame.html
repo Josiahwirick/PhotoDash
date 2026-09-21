@@ -9,44 +9,53 @@
 <body>
   <div class="frame" id="frame"
        data-poll="{{ frame_poll_seconds }}"
-       data-interval="{{ photo_interval_seconds }}">
-    <section class="calendar" id="calendar" aria-label="Weekly calendar">
-      {% for day in days %}
-      <article class="day{% if day.is_today %} day--today{% endif %}" data-date="{{ day.date }}">
-        <header class="day__header">
-          <div class="day__weekday">{{ day.weekday }}</div>
-          <div class="day__date">{{ day.month_day }}</div>
-        </header>
-        <div class="day__weather">
-          {% if day.weather %}
-            <span class="weather__icon weather__icon--{{ day.weather.condition }}" aria-hidden="true"></span>
-            <span class="weather__temps">
-              {% if day.is_today and day.weather.current %}
-                <span class="weather__current">{{ day.weather.current }}°</span>
-              {% endif %}
-              <span class="weather__range">{{ day.weather.low or "—" }}° / {{ day.weather.high or "—" }}°</span>
-            </span>
-            <span class="weather__label">{{ day.weather.condition_label }}</span>
-          {% else %}
-            <span class="weather__label weather__label--empty">No weather</span>
-          {% endif %}
-        </div>
-        <ul class="day__entries">
-          {% for entry in day.entries %}
-          <li class="entry entry--{{ entry.entry_type }}">
-            {% if entry.person_name %}
-            <div class="entry__person" {% if entry.person_color %}style="--person-color: {{ entry.person_color }}"{% endif %}>
-              {{ entry.person_name }}
-            </div>
+       data-interval="{{ photo_interval_seconds }}"
+       data-lofi="{{ '1' if lofi_enabled else '0' }}"
+       style="--cal-font-boost: {{ calendar_font_boost }}px;">
+    <section class="calendar{% if lofi_enabled %} calendar--lofi{% endif %}" id="calendar" aria-label="Weekly calendar">
+      <div class="calendar__days" id="calendar-days">
+        {% for day in days %}
+        <article class="day{% if day.is_today %} day--today{% endif %}" data-date="{{ day.date }}">
+          <header class="day__header">
+            <div class="day__weekday">{{ day.weekday }}</div>
+            <div class="day__date">{{ day.month_day }}</div>
+          </header>
+          <div class="day__weather">
+            {% if day.weather %}
+              <span class="weather__icon weather__icon--{{ day.weather.condition }}" aria-hidden="true"></span>
+              <span class="weather__temps">
+                {% if day.is_today and day.weather.current %}
+                  <span class="weather__current">{{ day.weather.current }}°</span>
+                {% endif %}
+                <span class="weather__range">{{ day.weather.low or "—" }}° / {{ day.weather.high or "—" }}°</span>
+              </span>
+              <span class="weather__label">{{ day.weather.condition_label }}</span>
+            {% else %}
+              <span class="weather__label weather__label--empty">No weather</span>
             {% endif %}
-            <div class="entry__text">{{ entry.text }}</div>
-          </li>
-          {% else %}
-          <li class="entry entry--empty">—</li>
-          {% endfor %}
-        </ul>
-      </article>
-      {% endfor %}
+          </div>
+          <ul class="day__entries">
+            {% for entry in day.entries %}
+            <li class="entry entry--{{ entry.entry_type }}">
+              {% if entry.person_name %}
+              <div class="entry__person" {% if entry.person_color %}style="--person-color: {{ entry.person_color }}"{% endif %}>
+                {{ entry.person_name }}
+              </div>
+              {% endif %}
+              <div class="entry__text">{{ entry.text }}</div>
+            </li>
+            {% else %}
+            <li class="entry entry--empty">—</li>
+            {% endfor %}
+          </ul>
+        </article>
+        {% endfor %}
+      </div>
+      {% if lofi_enabled %}
+      <div class="lofi-strip" id="lofi-strip" aria-hidden="true">
+        <canvas class="lofi-strip__canvas" id="lofi-canvas"></canvas>
+      </div>
+      {% endif %}
     </section>
 
     <section class="photos" aria-label="Photo frame">
@@ -61,5 +70,8 @@
     window.PHOTODASH_PHOTOS = {{ photos | tojson }};
   </script>
   <script src="{{ url_for('static', filename='js/frame.js') }}"></script>
+  {% if lofi_enabled %}
+  <script src="{{ url_for('static', filename='js/lofi.js') }}"></script>
+  {% endif %}
 </body>
 </html>

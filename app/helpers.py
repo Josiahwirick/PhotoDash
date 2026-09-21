@@ -117,4 +117,25 @@ def build_frame_payload() -> dict:
         "photo_interval_seconds": interval,
         "frame_poll_seconds": poll,
         "temperature_unit": unit,
+        "lofi_enabled": _lofi_active(),
+        "calendar_font_boost": _calendar_font_boost(),
     }
+
+
+def _truthy_setting(key: str, default: str = "0") -> bool:
+    raw = (settings_model.get(key, default) or default).strip().lower()
+    return raw in ("1", "true", "yes", "on")
+
+
+def _lofi_active() -> bool:
+    """Strip + SSE only when the installer marked lofi installed and it is enabled."""
+    return _truthy_setting("lofi_installed", "0") and _truthy_setting("lofi_enabled", "0")
+
+
+def _calendar_font_boost() -> int:
+    return parse_bounded_int(
+        settings_model.get("calendar_font_boost", "5"),
+        default=5,
+        minimum=0,
+        maximum=16,
+    )

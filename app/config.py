@@ -62,4 +62,10 @@ DEFAULT_SETTINGS = {
     "weather_timezone": "America/New_York",
     "temperature_unit": "F",
     "frame_poll_seconds": "60",
+    # Lofi is opt-in via installer (--with-lofi); strip stays hidden until then.
+    "lofi_installed": "0",
+    "lofi_enabled": "0",
+    "lofi_volume_db": "-8",
+    # Extra pixels added to calendar type (0–16). Default matches prior +5px look.
+    "calendar_font_boost": "5",
 }

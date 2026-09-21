@@ -1,0 +1,26 @@
+[Unit]
+Description=PhotoDash CLIAMP lofi stream (headless)
+After=network-online.target sound.target photodash.service
+Wants=network-online.target sound.target
+
+[Service]
+Type=simple
+User=KIOSK_USER
+Group=KIOSK_USER
+EnvironmentFile=-/etc/photodash.env
+Environment=HOME=KIOSK_HOME
+Environment=XDG_RUNTIME_DIR=/run/user/KIOSK_UID
+Environment=CLIAMP_CONFIG_DIR=/var/lib/photodash/cliamp
+WorkingDirectory=KIOSK_HOME
+ExecStartPre=/bin/mkdir -p /var/lib/photodash/cliamp
+ExecStartPre=/bin/chown KIOSK_USER:photodash /var/lib/photodash/cliamp
+ExecStartPre=/bin/chmod 2770 /var/lib/photodash/cliamp
+# Prefer HDMI when present; ignore failures on headphone-only setups.
+ExecStartPre=-/bin/sh -c 'sink=$(pactl list short sinks 2>/dev/null | awk "/hdmi/ {print \$2; exit}"); if [ -n "$sink" ]; then pactl set-default-sink "$sink"; pactl set-sink-mute "$sink" 0; pactl set-sink-volume "$sink" 90%; fi'
+ExecStart=/usr/local/bin/cliamp --daemon --auto-play --vol=0 --no-help-bar http://radio.cliamp.stream/lofi/stream
+ExecStartPost=/bin/sh -c 'for i in 1 2 3 4 5 6 7 8 9 10; do sock=/var/lib/photodash/cliamp/cliamp.sock; if [ -S "$sock" ]; then chgrp photodash "$sock" && chmod 660 "$sock" && exit 0; fi; sleep 0.3; done; exit 0'
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

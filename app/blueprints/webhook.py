@@ -13,6 +13,7 @@ from app.helpers import today_local
 from app.models import calendar as calendar_model
 from app.models import people as people_model
 from app.models import settings as settings_model
+from app.services.cliamp_control import stream_control
 from app.services.intent_parser import merge_structured
 
 bp = Blueprint("webhook", __name__)
@@ -84,6 +85,9 @@ def webhook():
         if parsed.action == "create_entry":
             result = _create_entry(parsed.fields)
             return jsonify({"ok": True, "action": "create_entry", "result": result}), 200
+        if parsed.action == "stream_control":
+            result = stream_control(str(parsed.fields.get("command") or ""))
+            return jsonify({"ok": True, "action": "stream_control", "result": result}), 200
     except IntegrityError:
         return jsonify({"ok": False, "error": "A person with that name already exists."}), 409
     except ValueError as exc:

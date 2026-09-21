@@ -25,11 +25,14 @@ Useful flags:
 ```bash
 sudo ./install.sh --no-kiosk              # app/admin only
 sudo ./install.sh --non-interactive       # use env defaults / existing env file
-sudo ./install.sh --with-discord          # also install Discord bot companion
+sudo ./install.sh --with-discord          # optional Discord bot companion
+sudo ./install.sh --with-lofi             # optional CLIAMP lofi stream + visualizer strip
 sudo ./install.sh --update                # re-sync code, deps, restart services
 ```
 
-Non-interactive variables: `PHOTODASH_PASSWORD`, `SECRET_KEY`, `PHOTODASH_STORAGE_PATH`, `PHOTODASH_WEATHER_LAT`, `PHOTODASH_WEATHER_LON`, `PHOTODASH_TIMEZONE`, `DISCORD_BOT_TOKEN`, `PHOTODASH_WEBHOOK_TOKEN`, `DISCORD_CHANNEL_ID`.
+Interactive installs also ask separately whether to enable Discord and/or lofi (default no).
+
+Non-interactive variables: `PHOTODASH_PASSWORD`, `SECRET_KEY`, `PHOTODASH_STORAGE_PATH`, `PHOTODASH_WEATHER_LAT`, `PHOTODASH_WEATHER_LON`, `PHOTODASH_TIMEZONE`, `DISCORD_BOT_TOKEN`, `PHOTODASH_WEBHOOK_TOKEN`, `DISCORD_CHANNEL_ID`, `PHOTODASH_WITH_DISCORD=1`, `PHOTODASH_WITH_LOFI=1`.
 
 After install:
 
@@ -66,7 +69,7 @@ Structured example:
 }
 ```
 
-Example phrases: `add person Estelle #7cb89a`, `appointment Friday dentist`, `reminder today pack lunch`.
+Example phrases: `add person Estelle #7cb89a`, `appointment Friday dentist`, `reminder today pack lunch`, `stop stream`, `start stream`.
 
 ## Discord bot
 
@@ -80,9 +83,36 @@ Outbound gateway bot (works behind NAT / Tailscale). Your family can DM the bot 
 sudo DISCORD_BOT_TOKEN=... ./discord_bot/install.sh
 ```
 
-Or `sudo ./install.sh --with-discord` with `DISCORD_BOT_TOKEN` set. Config: `/etc/photodash-discord.env`. Logs: `journalctl -u photodash-discord -f`.
+Or `sudo ./install.sh --with-discord` with `DISCORD_BOT_TOKEN` set (or answer yes when
+the installer asks). Config: `/etc/photodash-discord.env`. Logs: `journalctl -u photodash-discord -f`.
 
 Optional `DISCORD_CHANNEL_ID` also accepts messages in one guild channel.
+
+## Lofi strip (CLIAMP)
+
+Optional. Without `--with-lofi` (or answering yes to the installer prompt), the frame
+does not reserve space for a visualizer strip.
+
+The strip is fed by [`cliamp visstream`](https://github.com/bjarneo/cliamp) while a
+headless CLIAMP daemon plays the built-in lofi stream.
+
+Enable during install:
+
+```bash
+sudo ./install.sh --with-lofi
+# or later:
+sudo ./scripts/install_lofi.sh
+```
+
+That installs the arm64/amd64 binary, `photodash-cliamp.service`, and sets
+`lofi_installed` / `lofi_enabled` in settings. Turn the strip on/off anytime under
+**Admin → Settings** (controls appear only when the feature is installed).
+
+The daemon runs as the kiosk user so it can use PulseAudio/PipeWire. Config/socket
+live in `/var/lib/photodash/cliamp` (group `photodash`) so gunicorn can attach
+`visstream`. Logs: `journalctl -u photodash-cliamp -f`.
+
+Discord can also send `stop stream` / `start stream` when the bot is installed.
 
 ## Local development
 
@@ -123,6 +153,7 @@ pytest -q
 - `photodash.service` — gunicorn on `:8080`
 - `photodash-kiosk.service` — `xinit` → Chromium `--kiosk` (after app)
 - `photodash-discord.service` — Discord bot (optional)
+- `photodash-cliamp.service` — headless CLIAMP lofi stream (optional)
 
 Screen blanking is disabled in `deploy/xinitrc` via `xset s off -dpms`.
 

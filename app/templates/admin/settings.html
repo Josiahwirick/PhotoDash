@@ -41,6 +41,25 @@
         <option value="C" {% if settings.get('temperature_unit') == 'C' %}selected{% endif %}>°C</option>
       </select>
     </label>
+    <label>
+      Calendar font size boost (0–16 px)
+      <input type="number" name="calendar_font_boost" min="0" max="16" step="1"
+             value="{{ settings.get('calendar_font_boost', '5') }}">
+    </label>
+    {% if lofi_installed %}
+    <label>
+      Lofi strip (CLIAMP visualizer)
+      <select name="lofi_enabled">
+        <option value="1" {% if settings.get('lofi_enabled', '0') in ('1', 'true', 'yes', 'on') %}selected{% endif %}>On</option>
+        <option value="0" {% if settings.get('lofi_enabled', '0') not in ('1', 'true', 'yes', 'on') %}selected{% endif %}>Off</option>
+      </select>
+    </label>
+    <label>
+      Lofi volume hint (dB)
+      <input type="number" name="lofi_volume_db" min="-30" max="6" step="1"
+             value="{{ settings.get('lofi_volume_db', '-8') }}">
+    </label>
+    {% endif %}
 
     <fieldset>
       <legend>Change admin password</legend>
@@ -72,6 +91,7 @@
       <li><code>chore tomorrow: take out trash for Estelle</code></li>
       <li><code>appointment Friday dentist</code></li>
       <li><code>reminder today pack lunch</code></li>
+      <li><code>stop stream</code> / <code>start stream</code></li>
     </ul>
     <pre class="lede" style="white-space: pre-wrap; font-size: 0.85em;">curl -s -X POST http://127.0.0.1:8080/api/webhook \
   -H "Authorization: Bearer YOUR_TOKEN" \

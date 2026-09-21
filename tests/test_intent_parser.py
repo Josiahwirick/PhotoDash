@@ -108,3 +108,30 @@ def test_merge_structured_wins_over_text():
     )
     assert result.fields["text"] == "from structured"
     assert result.fields["entry_type"] == "reminder"
+
+
+def test_parse_stop_stream():
+    result = parse_text("stop stream", today=TODAY)
+    assert result.error is None
+    assert result.action == "stream_control"
+    assert result.fields["command"] == "stop"
+
+
+def test_parse_start_stream_variants():
+    for phrase in ("start stream", "resume music", "play lofi", "lofi on"):
+        result = parse_text(phrase, today=TODAY)
+        assert result.action == "stream_control", phrase
+        assert result.fields["command"] == "start", phrase
+
+
+def test_parse_stop_stream_variants():
+    for phrase in ("pause stream", "stop music", "lofi off", "stop the stream"):
+        result = parse_text(phrase, today=TODAY)
+        assert result.action == "stream_control", phrase
+        assert result.fields["command"] == "stop", phrase
+
+
+def test_merge_structured_stream():
+    result = merge_structured({"intent": "stream", "command": "stop"}, today=TODAY)
+    assert result.action == "stream_control"
+    assert result.fields["command"] == "stop"

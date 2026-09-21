@@ -25,6 +25,18 @@ _TYPE_PREFIX = re.compile(
     re.IGNORECASE,
 )
 _FOR_PERSON = re.compile(r"\s+for\s+(.+?)\s*$", re.IGNORECASE)
+_STREAM_STOP = re.compile(
+    r"^\s*(?:stop|pause)\s+(?:the\s+)?(?:stream|lofi|music|radio)\s*$"
+    r"|^\s*(?:stop|pause)\s+lofi(?:\s+stream)?\s*$"
+    r"|^\s*lofi\s+off\s*$",
+    re.IGNORECASE,
+)
+_STREAM_START = re.compile(
+    r"^\s*(?:start|resume|play)\s+(?:the\s+)?(?:stream|lofi|music|radio)\s*$"
+    r"|^\s*(?:start|resume|play)\s+lofi(?:\s+stream)?\s*$"
+    r"|^\s*lofi\s+on\s*$",
+    re.IGNORECASE,
+)
 _WEEKDAYS = {
     "monday": 0,
     "mon": 0,
@@ -50,16 +62,20 @@ _WEEKDAYS = {
 class ParsedIntent:
     """Structured result of parsing free text or merging structured fields."""
 
-    action: str  # "create_person" | "create_entry"
+    action: str  # "create_person" | "create_entry" | "stream_control"
     fields: dict[str, Any]
     error: str | None = None
 
 
 def parse_text(text: str, *, today: date | None = None) -> ParsedIntent:
-    """Parse free-text into a person or calendar intent."""
+    """Parse free-text into a person, calendar, or stream intent."""
     raw = (text or "").strip()
     if not raw:
         return ParsedIntent(action="", fields={}, error="Empty message.")
+
+    stream = _parse_stream(raw)
+    if stream is not None:
+        return stream
 
     person = _parse_person(raw)
     if person is not None:
@@ -76,9 +92,18 @@ def parse_text(text: str, *, today: date | None = None) -> ParsedIntent:
             "Could not understand that. Try: "
             "'add person Name', "
             "'chore tomorrow: take out trash for Estelle', "
-            "or 'appointment Friday dentist'."
+            "'appointment Friday dentist', "
+            "'stop stream', or 'start stream'."
         ),
     )
+
+
+def _parse_stream(raw: str) -> ParsedIntent | None:
+    if _STREAM_STOP.match(raw):
+        return ParsedIntent(action="stream_control", fields={"command": "stop"})
+    if _STREAM_START.match(raw):
+        return ParsedIntent(action="stream_control", fields={"command": "start"})
+    return None
 
 
 def _parse_person(raw: str) -> ParsedIntent | None:
@@ -208,6 +233,30 @@ def merge_structured(payload: dict[str, Any], *, today: date | None = None) -> P
     entry_date = (payload.get("entry_date") or "").strip()
     entry_type = (payload.get("entry_type") or "").strip().lower()
     person = (payload.get("person") or "").strip()
+    command = (payload.get("command") or "").strip().lower()
+
+    # Stream control: explicit intent, or bare command stop/start with no calendar/person fields.
+    streamish = intent in ("stream", "lofi", "music")
+    bare_stream_cmd = (
+        command in ("stop", "start")
+        and not name
+        and not entry_date
+        and entry_type not in ENTRY_TYPES
+        and intent in ("", "stream", "lofi", "music")
+    )
+    if streamish or bare_stream_cmd:
+        cmd = command
+        if cmd not in ("stop", "start"):
+            if text:
+                parsed = parse_text(text, today=today)
+                if parsed.action == "stream_control":
+                    return parsed
+            return ParsedIntent(
+                action="stream_control",
+                fields={},
+                error="Stream command must be 'stop' or 'start' (or say 'stop stream').",
+            )
+        return ParsedIntent(action="stream_control", fields={"command": cmd})
 
     wants_person = intent == "person" or (bool(name) and intent != "calendar" and not entry_date)
     wants_calendar = intent == "calendar" or bool(entry_date) or entry_type in ENTRY_TYPES
