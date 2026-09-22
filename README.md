@@ -1,13 +1,16 @@
 # PhotoDash
 
-Family dashboard / digital photo frame for Raspberry Pi 3 (Raspberry Pi OS Lite, headless).
+Family dashboard / digital photo frame for Raspberry Pi OS Lite (headless).
+
+Built and tested on a **Raspberry Pi 4 (4GB)**. Performance on anything below that
+spec is not guaranteed (especially with Chromium kiosk + optional lofi streaming).
 
 Full-screen kiosk view: rolling 5-day calendar (yesterday through today+3) + vertical photo strip with crossfade. Configure everything from a shared-password admin UI on your LAN.
 
 ## Quick install (on the Pi)
 
 ```bash
-git clone <this-repo-url> photodash
+git clone https://github.com/Josiahwirick/PhotoDash.git photodash
 cd photodash
 sudo ./install.sh
 ```
