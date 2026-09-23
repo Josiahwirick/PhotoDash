@@ -304,7 +304,19 @@ print_summary() {
   echo " Admin:  http://${ip:-<pi-ip>}:8080/admin"
   echo " mDNS:   http://${host}.local:8080/admin"
   echo " Logs:   journalctl -u photodash -f"
+  echo " Reset:  sudo photodash-reset"
   echo "============================================"
+}
+
+install_reset_helper() {
+  log "Installing photodash-reset helper"
+  install -m 755 "$REPO_ROOT/scripts/photodash-reset.sh" /usr/local/sbin/photodash-reset
+  install -m 440 "$REPO_ROOT/deploy/photodash-reset.sudoers" /etc/sudoers.d/photodash-reset
+  # Validate sudoers fragment; remove if invalid so we never lock out sudo.
+  if ! visudo -cf /etc/sudoers.d/photodash-reset >/dev/null 2>&1; then
+    rm -f /etc/sudoers.d/photodash-reset
+    echo "WARNING: photodash-reset sudoers fragment failed validation; installed binary only."
+  fi
 }
 
 install_packages
@@ -314,6 +326,7 @@ configure_env
 migrate_db
 persist_weather_settings
 install_units
+install_reset_helper
 wait_health
 
 prompt_optional_features() {

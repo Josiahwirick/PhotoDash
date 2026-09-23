@@ -37,6 +37,12 @@ _STREAM_START = re.compile(
     r"|^\s*lofi\s+on\s*$",
     re.IGNORECASE,
 )
+_RESET_FRAME = re.compile(
+    r"^\s*(?:reset|restart)\s+(?:the\s+)?(?:frame|photodash|kiosk|pi)\s*$"
+    r"|^\s*(?:reset|restart)\s+(?:lofi|stream)\s*$"
+    r"|^\s*photodash\s+reset\s*$",
+    re.IGNORECASE,
+)
 _WEEKDAYS = {
     "monday": 0,
     "mon": 0,
@@ -62,16 +68,20 @@ _WEEKDAYS = {
 class ParsedIntent:
     """Structured result of parsing free text or merging structured fields."""
 
-    action: str  # "create_person" | "create_entry" | "stream_control"
+    action: str  # "create_person" | "create_entry" | "stream_control" | "reset_frame"
     fields: dict[str, Any]
     error: str | None = None
 
 
 def parse_text(text: str, *, today: date | None = None) -> ParsedIntent:
-    """Parse free-text into a person, calendar, or stream intent."""
+    """Parse free-text into a person, calendar, stream, or reset intent."""
     raw = (text or "").strip()
     if not raw:
         return ParsedIntent(action="", fields={}, error="Empty message.")
+
+    reset = _parse_reset(raw)
+    if reset is not None:
+        return reset
 
     stream = _parse_stream(raw)
     if stream is not None:
@@ -93,9 +103,22 @@ def parse_text(text: str, *, today: date | None = None) -> ParsedIntent:
             "'add person Name', "
             "'chore tomorrow: take out trash for Estelle', "
             "'appointment Friday dentist', "
-            "'stop stream', or 'start stream'."
+            "'stop stream', 'start stream', or 'reset frame'."
         ),
     )
+
+
+def _parse_reset(raw: str) -> ParsedIntent | None:
+    if not _RESET_FRAME.match(raw):
+        return None
+    lowered = raw.lower()
+    if "lofi" in lowered or "stream" in lowered:
+        scope = "lofi"
+    elif "kiosk" in lowered:
+        scope = "kiosk"
+    else:
+        scope = "all"
+    return ParsedIntent(action="reset_frame", fields={"scope": scope})
 
 
 def _parse_stream(raw: str) -> ParsedIntent | None:
@@ -234,6 +257,16 @@ def merge_structured(payload: dict[str, Any], *, today: date | None = None) -> P
     entry_type = (payload.get("entry_type") or "").strip().lower()
     person = (payload.get("person") or "").strip()
     command = (payload.get("command") or "").strip().lower()
+    scope = (payload.get("scope") or "").strip().lower()
+
+    if intent in ("reset", "restart"):
+        if scope not in ("all", "lofi", "kiosk") and text:
+            parsed = parse_text(text, today=today)
+            if parsed.action == "reset_frame":
+                return parsed
+        if scope not in ("all", "lofi", "kiosk"):
+            scope = "all"
+        return ParsedIntent(action="reset_frame", fields={"scope": scope})
 
     # Stream control: explicit intent, or bare command stop/start with no calendar/person fields.
     streamish = intent in ("stream", "lofi", "music")

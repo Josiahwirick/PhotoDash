@@ -15,6 +15,7 @@ from app.models import people as people_model
 from app.models import settings as settings_model
 from app.services.cliamp_control import stream_control
 from app.services.intent_parser import merge_structured
+from app.services.reset_control import reset_frame
 
 bp = Blueprint("webhook", __name__)
 
@@ -88,6 +89,9 @@ def webhook():
         if parsed.action == "stream_control":
             result = stream_control(str(parsed.fields.get("command") or ""))
             return jsonify({"ok": True, "action": "stream_control", "result": result}), 200
+        if parsed.action == "reset_frame":
+            result = reset_frame(scope=str(parsed.fields.get("scope") or "all"))
+            return jsonify({"ok": True, "action": "reset_frame", "result": result}), 200
     except IntegrityError:
         return jsonify({"ok": False, "error": "A person with that name already exists."}), 409
     except ValueError as exc:

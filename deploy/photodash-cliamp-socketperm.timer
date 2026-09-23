@@ -1,0 +1,11 @@
+[Unit]
+Description=Periodically fix PhotoDash CLIAMP IPC socket permissions
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=30s
+AccuracySec=5s
+Unit=photodash-cliamp-socketperm.service
+
+[Install]
+WantedBy=timers.target

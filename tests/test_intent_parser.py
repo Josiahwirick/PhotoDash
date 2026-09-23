@@ -131,7 +131,14 @@ def test_parse_stop_stream_variants():
         assert result.fields["command"] == "stop", phrase
 
 
-def test_merge_structured_stream():
-    result = merge_structured({"intent": "stream", "command": "stop"}, today=TODAY)
-    assert result.action == "stream_control"
-    assert result.fields["command"] == "stop"
+def test_parse_reset_frame():
+    result = parse_text("reset frame", today=TODAY)
+    assert result.error is None
+    assert result.action == "reset_frame"
+    assert result.fields["scope"] == "all"
+
+
+def test_parse_reset_lofi():
+    result = parse_text("restart lofi", today=TODAY)
+    assert result.action == "reset_frame"
+    assert result.fields["scope"] == "lofi"

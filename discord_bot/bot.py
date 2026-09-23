@@ -20,6 +20,7 @@ HELP_TEXT = """PhotoDash bot — send a message like:
 • `appointment Friday dentist`
 • `reminder today pack lunch`
 • `stop stream` / `start stream` (lofi)
+• `reset frame` — soft-restart app + kiosk + lofi (no reboot)
 
 Or say `help` for this message.
 """
@@ -74,6 +75,8 @@ def post_webhook(text: str) -> tuple[bool, str]:
         if result.get("state") == "playing":
             return True, "Lofi stream playing."
         return True, f"Stream {result.get('command', 'updated')}."
+    if action == "reset_frame":
+        return True, f"Reset started ({result.get('scope', 'all')}). Give it ~15 seconds."
     return True, "Done."
 
 

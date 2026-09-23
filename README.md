@@ -44,6 +44,14 @@ After install:
 
 Point **Settings → storage path** at a USB mount (default `/mnt/usb/photodash/photos`) to reduce SD wear. Set weather lat/lon + timezone so the calendar strip can show conditions.
 
+If the kiosk freezes or lofi controls stop responding, soft-reset without rebooting:
+
+```bash
+sudo photodash-reset
+```
+
+Or DM the Discord bot `reset frame`, or use **Admin → Settings → Reset frame**.
+
 ## Webhook (people & calendar without admin UI)
 
 `POST /api/webhook` accepts structured JSON and/or free-text. Authenticate with:
@@ -72,7 +80,7 @@ Structured example:
 }
 ```
 
-Example phrases: `add person Estelle #7cb89a`, `appointment Friday dentist`, `reminder today pack lunch`, `stop stream`, `start stream`.
+Example phrases: `add person Estelle #7cb89a`, `appointment Friday dentist`, `reminder today pack lunch`, `stop stream`, `start stream`, `reset frame`.
 
 ## Discord bot
 

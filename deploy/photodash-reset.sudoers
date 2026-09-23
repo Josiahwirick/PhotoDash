@@ -1,0 +1,2 @@
+# Allow the photodash service user to soft-reset without a password.
+photodash ALL=(root) NOPASSWD: /usr/local/sbin/photodash-reset, /usr/local/sbin/photodash-reset *

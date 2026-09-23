@@ -1,0 +1,8 @@
+[Unit]
+Description=Keep PhotoDash CLIAMP IPC socket group-readable
+After=photodash-cliamp.service
+Requires=photodash-cliamp.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'sock=/var/lib/photodash/cliamp/cliamp.sock; if [ -S "$sock" ]; then chgrp photodash "$sock" && chmod 660 "$sock"; fi'

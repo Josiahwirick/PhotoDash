@@ -62,6 +62,11 @@ sed \
   "$REPO_ROOT/deploy/photodash-cliamp.service" \
   > /etc/systemd/system/photodash-cliamp.service
 
+install -m 644 "$REPO_ROOT/deploy/photodash-cliamp-socketperm.service" \
+  /etc/systemd/system/photodash-cliamp-socketperm.service
+install -m 644 "$REPO_ROOT/deploy/photodash-cliamp-socketperm.timer" \
+  /etc/systemd/system/photodash-cliamp-socketperm.timer
+
 mkdir -p /etc/systemd/system/photodash.service.d
 cat > /etc/systemd/system/photodash.service.d/cliamp.conf <<EOF
 [Service]
@@ -88,8 +93,16 @@ PY
   fi
 fi
 
+# Also install the shared reset helper (always useful on a kiosk).
+install -m 755 "$REPO_ROOT/scripts/photodash-reset.sh" /usr/local/sbin/photodash-reset 2>/dev/null || true
+if [[ -f "$REPO_ROOT/deploy/photodash-reset.sudoers" ]]; then
+  install -m 440 "$REPO_ROOT/deploy/photodash-reset.sudoers" /etc/sudoers.d/photodash-reset
+  visudo -cf /etc/sudoers.d/photodash-reset >/dev/null 2>&1 || rm -f /etc/sudoers.d/photodash-reset
+fi
+
 systemctl daemon-reload
 systemctl enable photodash-cliamp.service
+systemctl enable --now photodash-cliamp-socketperm.timer
 systemctl restart photodash-cliamp.service
 systemctl restart photodash.service || true
 systemctl --no-pager --full status photodash-cliamp.service || true

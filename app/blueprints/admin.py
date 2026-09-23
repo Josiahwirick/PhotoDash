@@ -287,6 +287,18 @@ def settings_regenerate_webhook_token():
     return redirect(url_for("admin.settings"))
 
 
+@bp.post("/settings/reset-frame")
+def settings_reset_frame():
+    from app.services.reset_control import reset_frame
+
+    try:
+        reset_frame(scope="all")
+        flash("Soft-reset started. The kiosk should come back in ~15 seconds.", "ok")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("admin.settings"))
+
+
 @bp.post("/settings")
 def settings_save():
     photo_interval = parse_bounded_int(

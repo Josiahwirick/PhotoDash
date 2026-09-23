@@ -74,6 +74,19 @@
   </form>
 
   <section class="card-form" style="margin-top: 1.5rem;">
+    <h2>Recovery</h2>
+    <p class="lede">
+      Soft-reset the kiosk / app / lofi without rebooting the Pi.
+      Same as Discord <code>reset frame</code> or <code>sudo photodash-reset</code> on the Pi.
+    </p>
+    <form method="post" action="{{ url_for('admin.settings_reset_frame') }}"
+          onsubmit="return confirm('Soft-reset PhotoDash now? The screen may go blank for ~15 seconds.');">
+      {% include "admin/csrf_input.html" %}
+      <button type="submit" class="btn btn--ghost">Reset frame</button>
+    </form>
+  </section>
+
+  <section class="card-form" style="margin-top: 1.5rem;">
     <h2>Webhook</h2>
     <p class="lede">
       Add people and calendar entries without the admin UI via

@@ -35,4 +35,10 @@ exec "$CHROMIUM" \
   --noerrdialogs \
   --disable-infobars \
   --disable-translate \
-  --autoplay-policy=no-user-gesture-required
+  --autoplay-policy=no-user-gesture-required \
+  --disable-dev-shm-usage \
+  --disable-gpu-compositing \
+  --disable-features=TranslateUI,MediaRouter \
+  --renderer-process-limit=2 \
+  --disk-cache-size=1 \
+  --js-flags="--max-old-space-size=128"
