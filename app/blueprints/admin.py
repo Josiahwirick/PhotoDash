@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
+
 from flask import (
     Blueprint,
     current_app,
@@ -193,10 +195,10 @@ def people_delete(person_id: int):
 
 @bp.get("/calendar")
 def calendar():
-    today = today_local().isoformat()
+    start = (today_local() - timedelta(days=7)).isoformat()
     return render_template(
         "admin/calendar.html",
-        entries=calendar_model.list_from_date(today, 200),
+        entries=calendar_model.list_from_date(start, 300),
         people=people_model.list_people(),
         entry_types=ENTRY_TYPES,
     )

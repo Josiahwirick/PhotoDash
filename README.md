@@ -80,7 +80,7 @@ Structured example:
 }
 ```
 
-Example phrases: `add person Estelle #7cb89a`, `appointment Friday dentist`, `reminder today pack lunch`, `stop stream`, `start stream`, `reset frame`.
+Example phrases: `add person Estelle #7cb89a`, `appointment Friday dentist`, `cancel event on Friday` (then reply with `1` / `1 3`), `delete chore tomorrow: take out trash`, `stop stream`, `start stream`, `reset frame`.
 
 ## Discord bot
 

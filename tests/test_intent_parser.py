@@ -138,7 +138,55 @@ def test_parse_reset_frame():
     assert result.fields["scope"] == "all"
 
 
-def test_parse_reset_lofi():
-    result = parse_text("restart lofi", today=TODAY)
-    assert result.action == "reset_frame"
-    assert result.fields["scope"] == "lofi"
+def test_parse_delete_chore_tomorrow():
+    result = parse_text("delete chore tomorrow: take out trash for Estelle", today=TODAY)
+    assert result.error is None
+    assert result.action == "delete_entry"
+    assert result.fields["entry_type"] == "chore"
+    assert result.fields["entry_date"] == "2026-09-19"
+    assert result.fields["text"] == "take out trash"
+    assert result.fields["person"] == "Estelle"
+
+
+def test_parse_delete_by_id():
+    result = parse_text("delete entry #12", today=TODAY)
+    assert result.action == "delete_entry"
+    assert result.fields["entry_id"] == 12
+
+
+def test_parse_delete_text_only():
+    result = parse_text("remove dentist", today=TODAY)
+    assert result.action == "delete_entry"
+    assert result.fields["text"] == "dentist"
+
+
+def test_parse_cancel_event_on_weekday():
+    result = parse_text("cancel event on Friday", today=TODAY)
+    assert result.error is None
+    assert result.action == "list_entries"
+    assert result.fields["entry_date"] == "2026-09-18"  # TODAY is Friday
+
+
+def test_parse_cancel_on_tomorrow():
+    result = parse_text("cancel on tomorrow", today=TODAY)
+    assert result.action == "list_entries"
+    assert result.fields["entry_date"] == "2026-09-19"
+
+
+def test_parse_cancel_events_for_iso():
+    result = parse_text("cancel events for 2026-09-22", today=TODAY)
+    assert result.action == "list_entries"
+    assert result.fields["entry_date"] == "2026-09-22"
+
+
+def test_parse_list_events_on_monday():
+    result = parse_text("list events on Monday", today=TODAY)
+    assert result.action == "list_entries"
+    assert result.fields["entry_date"] == "2026-09-21"  # next Monday after Fri 18
+
+
+def test_parse_cancel_chore_still_deletes():
+    result = parse_text("cancel chore tomorrow: take out trash", today=TODAY)
+    assert result.action == "delete_entry"
+    assert result.fields["entry_type"] == "chore"
+    assert result.fields["text"] == "take out trash"

@@ -86,6 +86,12 @@ def webhook():
         if parsed.action == "create_entry":
             result = _create_entry(parsed.fields)
             return jsonify({"ok": True, "action": "create_entry", "result": result}), 200
+        if parsed.action == "list_entries":
+            result = _list_entries(parsed.fields)
+            return jsonify({"ok": True, "action": "list_entries", "result": result}), 200
+        if parsed.action == "delete_entry":
+            result = _delete_entry(parsed.fields)
+            return jsonify({"ok": True, "action": "delete_entry", "result": result}), 200
         if parsed.action == "stream_control":
             result = stream_control(str(parsed.fields.get("command") or ""))
             return jsonify({"ok": True, "action": "stream_control", "result": result}), 200
@@ -137,3 +143,100 @@ def _create_entry(fields: dict[str, Any]) -> dict[str, Any]:
         "person_id": person_id,
         "person_name": person_name,
     }
+
+
+def _entry_summary(row: Any) -> dict[str, Any]:
+    return {
+        "id": int(row["id"]),
+        "entry_date": row["entry_date"],
+        "entry_type": row["entry_type"],
+        "text": row["text"],
+        "person_name": row["person_name"],
+    }
+
+
+def _list_entries(fields: dict[str, Any]) -> dict[str, Any]:
+    entry_date = (fields.get("entry_date") or "").strip()
+    if not entry_date:
+        raise ValueError("entry_date is required to list events.")
+    rows = calendar_model.find_entries(entry_date=entry_date, limit=50)
+    return {
+        "entry_date": entry_date,
+        "entries": [_entry_summary(row) for row in rows],
+    }
+
+
+def _delete_entry(fields: dict[str, Any]) -> dict[str, Any]:
+    entry_ids_raw = fields.get("entry_ids")
+    if entry_ids_raw is not None:
+        deleted_rows = []
+        missing: list[int] = []
+        for raw_id in entry_ids_raw:
+            eid = int(raw_id)
+            row = calendar_model.get_entry(eid)
+            if row is None:
+                missing.append(eid)
+                continue
+            if calendar_model.delete_entry(eid):
+                deleted_rows.append(_entry_summary(row))
+        if not deleted_rows:
+            if missing:
+                raise ValueError(f"No calendar entries found for ids {missing}.")
+            raise ValueError("No calendar entries deleted.")
+        return {"deleted": len(deleted_rows), "entries": deleted_rows, "missing": missing}
+
+    entry_id = fields.get("entry_id")
+    if entry_id is not None:
+        row = calendar_model.get_entry(int(entry_id))
+        if row is None:
+            raise ValueError(f"No calendar entry with id {entry_id}.")
+        calendar_model.delete_entry(int(entry_id))
+        return {
+            "deleted": 1,
+            "entries": [_entry_summary(row)],
+        }
+
+    person_id = None
+    person_name = fields.get("person")
+    if person_name:
+        prow = people_model.get_person_by_name(str(person_name))
+        if prow is None:
+            raise ValueError(f"No person named '{person_name}'.")
+        person_id = int(prow["id"])
+
+    text_query = (fields.get("text") or "").strip() or None
+    entry_date = (fields.get("entry_date") or "").strip() or None
+    entry_type = (fields.get("entry_type") or "").strip() or None
+    if entry_type and entry_type not in ("chore", "appointment", "reminder"):
+        entry_type = None
+
+    if not entry_date and not text_query and person_id is None and not entry_type:
+        raise ValueError("Need an entry id, date, or text to delete.")
+
+    matches = calendar_model.find_entries(
+        entry_date=entry_date,
+        entry_type=entry_type,
+        text_query=text_query,
+        person_id=person_id,
+        from_date=None if entry_date else today_local().isoformat(),
+        limit=20,
+    )
+    if not matches:
+        raise ValueError("No matching calendar entry found.")
+    if len(matches) > 1 and not (entry_date and text_query):
+        # Ambiguous — ask for more detail rather than deleting several.
+        preview = "; ".join(
+            f"#{r['id']} {r['entry_date']} {r['entry_type']}: {r['text']}" for r in matches[:5]
+        )
+        raise ValueError(
+            f"Matched {len(matches)} entries — be more specific (include date and text). "
+            f"Matches: {preview}"
+        )
+
+    deleted_rows = []
+    for row in matches:
+        if calendar_model.delete_entry(int(row["id"])):
+            deleted_rows.append(_entry_summary(row))
+    if not deleted_rows:
+        raise ValueError("No matching calendar entry found.")
+    return {"deleted": len(deleted_rows), "entries": deleted_rows}

@@ -37,6 +37,22 @@ _STREAM_START = re.compile(
     r"|^\s*lofi\s+on\s*$",
     re.IGNORECASE,
 )
+_DELETE_ENTRY = re.compile(
+    r"^\s*(?:delete|remove|cancel)\s+(?:(?:calendar\s+)?entry\s+)?(.+?)\s*$",
+    re.IGNORECASE,
+)
+_DELETE_ENTRY_ID = re.compile(
+    r"^\s*(?:delete|remove)\s+(?:entry\s+)?#?(\d+)\s*$",
+    re.IGNORECASE,
+)
+# "cancel event on Friday" / "cancel on 2026-09-27" / "list events for Monday"
+_LIST_ENTRIES = re.compile(
+    r"^\s*(?:"
+    r"(?:cancel|remove)\s+(?:(?:an?\s+)?(?:events?|entr(?:y|ies)|items?)\s+)?(?:on|for)\s+(.+?)"
+    r"|list\s+(?:events?|entr(?:y|ies)|calendar)\s+(?:on|for)\s+(.+?)"
+    r")\s*$",
+    re.IGNORECASE,
+)
 _RESET_FRAME = re.compile(
     r"^\s*(?:reset|restart)\s+(?:the\s+)?(?:frame|photodash|kiosk|pi)\s*$"
     r"|^\s*(?:reset|restart)\s+(?:lofi|stream)\s*$"
@@ -68,7 +84,7 @@ _WEEKDAYS = {
 class ParsedIntent:
     """Structured result of parsing free text or merging structured fields."""
 
-    action: str  # "create_person" | "create_entry" | "stream_control" | "reset_frame"
+    action: str  # create_person | create_entry | delete_entry | list_entries | stream_control | reset_frame
     fields: dict[str, Any]
     error: str | None = None
 
@@ -87,6 +103,14 @@ def parse_text(text: str, *, today: date | None = None) -> ParsedIntent:
     if stream is not None:
         return stream
 
+    listed = _parse_list_entries(raw, today=today or today_local())
+    if listed is not None:
+        return listed
+
+    deleted = _parse_delete(raw, today=today or today_local())
+    if deleted is not None:
+        return deleted
+
     person = _parse_person(raw)
     if person is not None:
         return person
@@ -102,10 +126,72 @@ def parse_text(text: str, *, today: date | None = None) -> ParsedIntent:
             "Could not understand that. Try: "
             "'add person Name', "
             "'chore tomorrow: take out trash for Estelle', "
-            "'appointment Friday dentist', "
-            "'stop stream', 'start stream', or 'reset frame'."
+            "'cancel event on Friday', "
+            "'stop stream', or 'reset frame'."
         ),
     )
+
+
+def _parse_list_entries(raw: str, *, today: date) -> ParsedIntent | None:
+    """List calendar entries for a day (Discord cancel picker)."""
+    match = _LIST_ENTRIES.match(raw)
+    if not match:
+        return None
+    date_body = (match.group(1) or match.group(2) or "").strip()
+    if not date_body:
+        return ParsedIntent(
+            action="list_entries",
+            fields={},
+            error="Say a day or date, e.g. 'cancel event on Friday'.",
+        )
+    entry_date, remainder = _consume_date(date_body, today=today)
+    if entry_date is None or remainder.strip():
+        return ParsedIntent(
+            action="list_entries",
+            fields={},
+            error="Could not find a date (try today, tomorrow, Friday, or YYYY-MM-DD).",
+        )
+    return ParsedIntent(
+        action="list_entries",
+        fields={"entry_date": entry_date.isoformat()},
+    )
+
+
+def _parse_delete(raw: str, *, today: date) -> ParsedIntent | None:
+    id_match = _DELETE_ENTRY_ID.match(raw)
+    if id_match:
+        return ParsedIntent(
+            action="delete_entry",
+            fields={"entry_id": int(id_match.group(1))},
+        )
+
+    match = _DELETE_ENTRY.match(raw)
+    if not match:
+        return None
+    body = match.group(1).strip()
+    if not body:
+        return ParsedIntent(
+            action="delete_entry",
+            fields={},
+            error="Say what to delete, e.g. 'delete chore tomorrow: take out trash'.",
+        )
+
+    # Reuse calendar parsing on the remainder when it looks like an entry phrase.
+    calendar = _parse_calendar(body, today=today)
+    if calendar is not None:
+        if calendar.error:
+            return ParsedIntent(action="delete_entry", fields={}, error=calendar.error)
+        fields = dict(calendar.fields)
+        return ParsedIntent(action="delete_entry", fields=fields)
+
+    # Fallback: free-text match against upcoming entries.
+    if len(body) > MAX_TEXT_LEN:
+        return ParsedIntent(
+            action="delete_entry",
+            fields={},
+            error=f"Search text is too long (max {MAX_TEXT_LEN} characters).",
+        )
+    return ParsedIntent(action="delete_entry", fields={"text": body})
 
 
 def _parse_reset(raw: str) -> ParsedIntent | None:
@@ -267,6 +353,87 @@ def merge_structured(payload: dict[str, Any], *, today: date | None = None) -> P
         if scope not in ("all", "lofi", "kiosk"):
             scope = "all"
         return ParsedIntent(action="reset_frame", fields={"scope": scope})
+
+    if intent in ("list", "list_entries", "list_calendar"):
+        if entry_date:
+            if not _ISO_DATE.match(entry_date):
+                d, rem = _consume_date(entry_date, today=today)
+                if d is None or rem.strip():
+                    return ParsedIntent(
+                        action="list_entries",
+                        fields={},
+                        error="entry_date must be YYYY-MM-DD or today/tomorrow/weekday.",
+                    )
+                entry_date = d.isoformat()
+            return ParsedIntent(action="list_entries", fields={"entry_date": entry_date})
+        if text:
+            parsed = parse_text(text, today=today)
+            if parsed.action == "list_entries":
+                return parsed
+            listed = _parse_list_entries(f"list events on {text}", today=today)
+            if listed is not None:
+                return listed
+        return ParsedIntent(
+            action="list_entries",
+            fields={},
+            error="Provide entry_date or a day name to list.",
+        )
+
+    if intent in ("delete", "delete_calendar", "delete_entry"):
+        ids_raw = payload.get("entry_ids")
+        if ids_raw is not None:
+            try:
+                entry_ids = [int(x) for x in ids_raw]
+            except (TypeError, ValueError):
+                return ParsedIntent(
+                    action="delete_entry",
+                    fields={},
+                    error="entry_ids must be a list of integers.",
+                )
+            if not entry_ids:
+                return ParsedIntent(
+                    action="delete_entry",
+                    fields={},
+                    error="entry_ids must not be empty.",
+                )
+            return ParsedIntent(action="delete_entry", fields={"entry_ids": entry_ids})
+        entry_id_raw = payload.get("entry_id")
+        if entry_id_raw is not None and str(entry_id_raw).strip() != "":
+            try:
+                entry_id = int(entry_id_raw)
+            except (TypeError, ValueError):
+                return ParsedIntent(
+                    action="delete_entry",
+                    fields={},
+                    error="entry_id must be an integer.",
+                )
+            return ParsedIntent(action="delete_entry", fields={"entry_id": entry_id})
+        if text:
+            parsed = parse_text(text, today=today)
+            if parsed.action in ("delete_entry", "list_entries"):
+                return parsed
+            # Allow structured delete fields with optional text phrase
+            parsed = parse_text(f"delete {text}", today=today)
+            if parsed.action == "delete_entry":
+                return parsed
+        fields: dict[str, Any] = {}
+        if entry_date:
+            fields["entry_date"] = entry_date
+        if entry_type in ENTRY_TYPES:
+            fields["entry_type"] = entry_type
+        if person:
+            fields["person"] = person
+        entry_text = (payload.get("text") or "").strip()
+        # Avoid treating the whole free-text command as the match string when intent is set
+        if entry_text and not entry_text.lower().startswith(("delete ", "remove ", "cancel ")):
+            fields["text"] = entry_text
+        if not fields:
+            return ParsedIntent(
+                action="delete_entry",
+                fields={},
+                error="Provide entry_id, or date/text to match an entry to delete.",
+            )
+        return ParsedIntent(action="delete_entry", fields=fields)
 
     # Stream control: explicit intent, or bare command stop/start with no calendar/person fields.
     streamish = intent in ("stream", "lofi", "music")

@@ -63,6 +63,48 @@ def get_entry(entry_id: int) -> Row | None:
     ).fetchone()
 
 
+def find_entries(
+    *,
+    entry_date: str | None = None,
+    entry_type: str | None = None,
+    text_query: str | None = None,
+    person_id: int | None = None,
+    from_date: str | None = None,
+    limit: int = 50,
+) -> list[Row]:
+    """Find entries matching optional filters (text is case-insensitive substring)."""
+    clauses: list[str] = []
+    params: list[object] = []
+    if entry_date:
+        clauses.append("e.entry_date = ?")
+        params.append(entry_date)
+    elif from_date:
+        clauses.append("e.entry_date >= ?")
+        params.append(from_date)
+    if entry_type:
+        clauses.append("e.entry_type = ?")
+        params.append(entry_type)
+    if person_id is not None:
+        clauses.append("e.person_id = ?")
+        params.append(person_id)
+    if text_query:
+        clauses.append("e.text LIKE ? COLLATE NOCASE")
+        params.append(f"%{text_query.strip()}%")
+    where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
+    params.append(limit)
+    return get_db().execute(
+        f"""
+        SELECT e.*, p.name AS person_name, p.color AS person_color
+        FROM calendar_entries e
+        LEFT JOIN people p ON p.id = e.person_id
+        {where}
+        ORDER BY e.entry_date ASC, e.sort_order ASC, e.id ASC
+        LIMIT ?
+        """,
+        params,
+    ).fetchall()
+
+
 def create_entry(
     entry_date: str,
     entry_type: str,
@@ -104,7 +146,9 @@ def update_entry(
     db.commit()
 
 
-def delete_entry(entry_id: int) -> None:
+def delete_entry(entry_id: int) -> bool:
+    """Delete by id. Returns True if a row was removed."""
     db = get_db()
-    db.execute("DELETE FROM calendar_entries WHERE id = ?", (entry_id,))
+    cur = db.execute("DELETE FROM calendar_entries WHERE id = ?", (entry_id,))
     db.commit()
+    return cur.rowcount > 0
