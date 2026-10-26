@@ -21,30 +21,29 @@
   const STYLES = [
     "classicBars",
     "peakCaps",
-    "ledMatrix",
     "scope",
     "vuMirror",
-    "fireBars",
-    "segmentLeds",
   ];
-  const CYCLE_MS = 90000;
+  // Match server visstream FPS (~2) — do not paint at display refresh rate.
+  const PAINT_MS = 500;
+  const CYCLE_MS = 120000;
   let styleIndex = 0;
   let bands = new Array(10).fill(0);
   let smoothed = new Array(10).fill(0);
   let peaks = new Array(10).fill(0);
   let peakHold = new Array(10).fill(0);
   let es = null;
-  let raf = 0;
+  let paintTimer = 0;
   let t0 = performance.now();
 
   function resize() {
-    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    // Device-pixel ratio >1 is expensive on a Pi for little visual gain on a thin strip.
     const w = strip.clientWidth;
     const h = strip.clientHeight;
     if (w < 1 || h < 1) return;
-    canvas.width = Math.round(w * dpr);
-    canvas.height = Math.round(h * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    canvas.width = Math.round(w);
+    canvas.height = Math.round(h);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
   }
 
   function heatColor(v) {
@@ -67,11 +66,6 @@
   function drawBackdrop(w, h) {
     ctx.fillStyle = "#0a1008";
     ctx.fillRect(0, 0, w, h);
-    // subtle scanlines
-    ctx.fillStyle = "rgba(0, 0, 0, 0.25)";
-    for (let y = 0; y < h; y += 3) {
-      ctx.fillRect(0, y, w, 1);
-    }
   }
 
   function drawClassicBars(w, h) {
@@ -85,11 +79,6 @@
       const y = h - barH;
       ctx.fillStyle = heatGradient(x, y, h, v);
       ctx.fillRect(x, y, barW, barH);
-      // pixelated horizontal segments
-      ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
-      for (let yy = y; yy < h; yy += 4) {
-        ctx.fillRect(x, yy, barW, 1);
-      }
     }
   }
 
@@ -240,28 +229,23 @@
   function paint() {
     const w = strip.clientWidth;
     const h = strip.clientHeight;
-    if (w < 1 || h < 1) {
-      raf = requestAnimationFrame(paint);
-      return;
-    }
-    for (let i = 0; i < bands.length; i++) {
-      smoothed[i] += (bands[i] - smoothed[i]) * 0.32;
-    }
-    while (peaks.length < bands.length) peaks.push(0);
-    while (peakHold.length < bands.length) peakHold.push(0);
-    peaks.length = bands.length;
-    peakHold.length = bands.length;
+    if (w >= 1 && h >= 1) {
+      for (let i = 0; i < bands.length; i++) {
+        smoothed[i] += (bands[i] - smoothed[i]) * 0.4;
+      }
+      while (peaks.length < bands.length) peaks.push(0);
+      while (peakHold.length < bands.length) peakHold.push(0);
+      peaks.length = bands.length;
+      peakHold.length = bands.length;
 
-    drawBackdrop(w, h);
-    const style = STYLES[styleIndex % STYLES.length];
-    if (style === "peakCaps") drawPeakCaps(w, h);
-    else if (style === "ledMatrix") drawLedMatrix(w, h);
-    else if (style === "scope") drawScope(w, h);
-    else if (style === "vuMirror") drawVuMirror(w, h);
-    else if (style === "fireBars") drawFireBars(w, h);
-    else if (style === "segmentLeds") drawSegmentLeds(w, h);
-    else drawClassicBars(w, h);
-    raf = requestAnimationFrame(paint);
+      drawBackdrop(w, h);
+      const style = STYLES[styleIndex % STYLES.length];
+      if (style === "peakCaps") drawPeakCaps(w, h);
+      else if (style === "scope") drawScope(w, h);
+      else if (style === "vuMirror") drawVuMirror(w, h);
+      else drawClassicBars(w, h);
+    }
+    paintTimer = window.setTimeout(paint, PAINT_MS);
   }
 
   function onFrame(raw) {
@@ -299,7 +283,7 @@
   resize();
   window.addEventListener("resize", resize);
   connect();
-  raf = requestAnimationFrame(paint);
+  paint();
   setInterval(function () {
     styleIndex = (styleIndex + 1) % STYLES.length;
   }, CYCLE_MS);

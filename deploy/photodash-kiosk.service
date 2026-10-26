@@ -13,6 +13,13 @@ ExecStartPre=/bin/sleep 2
 ExecStart=/usr/bin/xinit /etc/photodash/xinitrc -- :0 vt1 -nolisten tcp
 Restart=always
 RestartSec=5
+# Chromium is the usual OOM culprit. Kill/restart the kiosk cgroup before the
+# kernel hard-locks (which also kills SSH/Tailscale).
+MemoryAccounting=yes
+MemoryHigh=280M
+MemoryMax=360M
+OOMPolicy=kill
+OOMScoreAdjust=400
 
 [Install]
 WantedBy=graphical.target

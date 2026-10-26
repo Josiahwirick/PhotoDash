@@ -73,6 +73,8 @@ def test_photo_upload_rotates_landscape(app, admin_client):
 
     with app.app_context():
         from app.models import photos as photos_model
+        from app.services.photo_pipeline import resolve_storage_path
+        from pathlib import Path
 
         rows = photos_model.list_all()
         assert len(rows) == 1
@@ -80,6 +82,14 @@ def test_photo_upload_rotates_landscape(app, admin_client):
         assert rows[0]["rotation_degrees"] == 90
         assert rows[0]["width"] == 400
         assert rows[0]["height"] == 800
+        root = resolve_storage_path(Path(app.config["STORAGE_PATH"]))
+        assert (root / f"{Path(rows[0]['filename']).stem}.frame.jpg").is_file()
+
+    frame = client.get("/api/frame").get_json()
+    assert frame["photos"][0]["url"].endswith("?size=frame")
+    media = client.get(frame["photos"][0]["url"])
+    assert media.status_code == 200
+    assert media.mimetype.startswith("image/")
 
 
 def test_people_and_calendar_crud(app, admin_client):

@@ -16,7 +16,8 @@ from app.models import settings as settings_model
 bp = Blueprint("lofi", __name__)
 logger = logging.getLogger(__name__)
 
-DEFAULT_VIS_FPS = 15
+# Keep this very low — Pi 3B+ 1GB cannot afford canvas paints.
+DEFAULT_VIS_FPS = 2
 DEFAULT_CLIAMP_CONFIG_DIR = "/var/lib/photodash/cliamp"
 
 
@@ -56,7 +57,7 @@ def visstream():
 
     cliamp = _cliamp_bin()
     fps = int(current_app.config.get("CLIAMP_VIS_FPS") or DEFAULT_VIS_FPS)
-    fps = max(1, min(30, fps))
+    fps = max(1, min(15, fps))
     child_env = _cliamp_env()
 
     @stream_with_context

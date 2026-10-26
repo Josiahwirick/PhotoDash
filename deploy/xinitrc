@@ -13,10 +13,24 @@ if command -v matchbox-window-manager >/dev/null 2>&1; then
   matchbox-window-manager -use_titlebar no &
 fi
 
+# Prefer the real binary — /usr/bin/chromium is a Debian/RPi wrapper that
+# sources /etc/chromium.d/* and injects --enable-gpu-rasterization,
+# --enable-remote-extensions, and --load-extension=… (hundreds of MB of RSS
+# we cannot afford on a 1GB Pi).
 CHROMIUM=""
-for candidate in chromium-browser chromium google-chrome; do
-  if command -v "$candidate" >/dev/null 2>&1; then
+for candidate in \
+  /usr/lib/chromium/chromium \
+  /usr/lib/chromium-browser/chromium-browser \
+  chromium-browser \
+  chromium \
+  google-chrome
+do
+  if [ -x "$candidate" ]; then
     CHROMIUM="$candidate"
+    break
+  fi
+  if command -v "$candidate" >/dev/null 2>&1; then
+    CHROMIUM="$(command -v "$candidate")"
     break
   fi
 done
@@ -27,7 +41,14 @@ if [ -z "$CHROMIUM" ]; then
   exit 1
 fi
 
+# Fresh profile each boot keeps Chromium from accumulating GPU/shader caches.
+PROFILE_DIR="${HOME}/.config/photodash-chromium"
+mkdir -p "$PROFILE_DIR"
+
+# Flags tuned for ~1GB Raspberry Pi kiosk duty.
+# Prefer surviving over visual polish — freezes that OOM the kernel kill SSH too.
 exec "$CHROMIUM" \
+  --user-data-dir="$PROFILE_DIR" \
   --kiosk \
   --app=http://127.0.0.1:8080/ \
   --check-for-update-interval=31536000 \
@@ -37,8 +58,27 @@ exec "$CHROMIUM" \
   --disable-translate \
   --autoplay-policy=no-user-gesture-required \
   --disable-dev-shm-usage \
+  --disable-gpu \
   --disable-gpu-compositing \
-  --disable-features=TranslateUI,MediaRouter \
-  --renderer-process-limit=2 \
+  --disable-gpu-rasterization \
+  --enable-low-end-device-mode \
+  --disable-background-networking \
+  --disable-sync \
+  --disable-component-update \
+  --disable-extensions \
+  --disable-component-extensions-with-background-pages \
+  --disable-default-apps \
+  --disable-plugins \
+  --disable-features=TranslateUI,MediaRouter,AudioServiceOutOfProcess,InterestFeedContentSuggestions,BackForwardCache,PaintHolding \
+  --renderer-process-limit=1 \
+  --num-raster-threads=1 \
   --disk-cache-size=1 \
-  --js-flags="--max-old-space-size=128"
+  --media-cache-size=1 \
+  --force-device-scale-factor=1 \
+  --no-first-run \
+  --no-default-browser-check \
+  --js-flags="--max-old-space-size=48" \
+  --disable-hang-monitor \
+  --disable-ipc-flooding-protection \
+  --disable-backing-store-limit \
+  --process-per-site

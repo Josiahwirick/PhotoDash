@@ -1,0 +1,5 @@
+# Prefer killing Chromium over sshd / the durability watchdog / systemd.
+# Tuned for Pi 3B+ 1GB: act earlier so we never reach kernel hard-lock.
+# -m 15: SIGTERM when MemAvailable < 15%
+# -s 10: SIGTERM when free swap < 10%
+EARLYOOM_ARGS="-m 15 -s 10 -r 30 --prefer '^(chromium|chromium-browser|chrome|fbi)$' --avoid '^(sshd|systemd|photodash-kiosk-watchdog|earlyoom)$'"

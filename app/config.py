@@ -55,13 +55,13 @@ class Config:
 
 
 DEFAULT_SETTINGS = {
-    "photo_interval_seconds": "30",
+    "photo_interval_seconds": "45",
     "storage_path": "",
     "weather_latitude": "",
     "weather_longitude": "",
     "weather_timezone": "America/New_York",
     "temperature_unit": "F",
-    "frame_poll_seconds": "60",
+    "frame_poll_seconds": "120",
     # Lofi is opt-in via installer (--with-lofi); strip stays hidden until then.
     "lofi_installed": "0",
     "lofi_enabled": "0",

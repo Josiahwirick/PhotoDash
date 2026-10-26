@@ -22,6 +22,11 @@ from app.validation import (
 logger = logging.getLogger(__name__)
 
 JPEG_QUALITY = 85
+FRAME_JPEG_QUALITY = 78
+# Long edge for kiosk display variants (photo strip is ~half of 1080p).
+FRAME_MAX_EDGE = 720
+# Cap originals stored on disk so decode stays cheap on a 1GB Pi.
+STORE_MAX_EDGE = 1600
 ALLOWED_IMAGE_FORMATS = frozenset({"JPEG", "PNG", "WEBP"})
 
 # Cap decompression bombs once per process (gunicorn worker), not per request.
@@ -100,7 +105,12 @@ def process_and_store(file: FileStorage, storage_root: Path) -> int:
 
     filename = f"{uuid.uuid4().hex}.jpg"
     dest = storage_root / filename
+    # Downscale huge camera originals before storing — Chromium still has to decode them.
+    image.thumbnail((STORE_MAX_EDGE, STORE_MAX_EDGE), Image.Resampling.LANCZOS)
+    width, height = image.size
     image.save(dest, format="JPEG", quality=JPEG_QUALITY, optimize=True)
+    # Eagerly build the frame-sized variant used by the kiosk.
+    ensure_frame_variant(storage_root, filename, source=image)
 
     return photos_model.create_photo(
         filename=filename,
@@ -113,14 +123,46 @@ def process_and_store(file: FileStorage, storage_root: Path) -> int:
     )
 
 
+def frame_variant_name(filename: str) -> str:
+    stem = Path(filename).stem
+    return f"{stem}.frame.jpg"
+
+
+def ensure_frame_variant(
+    storage_root: Path,
+    filename: str,
+    *,
+    source: Image.Image | None = None,
+) -> Path:
+    """Return path to a kiosk-sized JPEG, creating it if missing/stale."""
+    original = storage_root / filename
+    variant = storage_root / frame_variant_name(filename)
+    if variant.is_file() and original.is_file():
+        try:
+            if variant.stat().st_mtime >= original.stat().st_mtime:
+                return variant
+        except OSError:
+            pass
+
+    if source is not None:
+        frame = source.copy()
+    else:
+        with Image.open(original) as img:
+            frame = img.convert("RGB") if img.mode != "RGB" else img.copy()
+    frame.thumbnail((FRAME_MAX_EDGE, FRAME_MAX_EDGE), Image.Resampling.LANCZOS)
+    frame.save(variant, format="JPEG", quality=FRAME_JPEG_QUALITY, optimize=True)
+    return variant
+
+
 def delete_stored_file(filename: str, configured_fallback: Path) -> None:
     """Remove a stored photo from every known storage root."""
     if not is_safe_stored_filename(filename):
         logger.warning("Refusing to delete unsafe photo filename: %r", filename)
         return
     for root in allowed_storage_roots(configured_fallback):
-        path = root / filename
-        try:
-            path.unlink(missing_ok=True)
-        except OSError as exc:
-            logger.warning("Could not delete %s: %s", path, exc)
+        for name in (filename, frame_variant_name(filename)):
+            path = root / name
+            try:
+                path.unlink(missing_ok=True)
+            except OSError as exc:
+                logger.warning("Could not delete %s: %s", path, exc)

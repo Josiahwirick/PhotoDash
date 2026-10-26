@@ -111,7 +111,12 @@ install_packages() {
     pkgs+=(
       xserver-xorg xinit x11-xserver-utils
       matchbox-window-manager unclutter
+      imagemagick
     )
+    # Prefer killing Chromium early over kernel OOM hard-lock (kills SSH too).
+    if apt-cache show earlyoom >/dev/null 2>&1; then
+      pkgs+=(earlyoom)
+    fi
     if apt-cache show chromium-browser >/dev/null 2>&1; then
       pkgs+=(chromium-browser)
     elif apt-cache show chromium >/dev/null 2>&1; then
@@ -277,6 +282,7 @@ install_units() {
     systemctl enable photodash-kiosk.service
     systemctl set-default graphical.target || true
     systemctl restart photodash-kiosk.service || true
+    install_kiosk_watchdog
   fi
 }
 
@@ -305,6 +311,7 @@ print_summary() {
   echo " mDNS:   http://${host}.local:8080/admin"
   echo " Logs:   journalctl -u photodash -f"
   echo " Reset:  sudo photodash-reset"
+  echo " Watch:  journalctl -u photodash-kiosk-watchdog -f"
   echo "============================================"
 }
 
@@ -317,6 +324,59 @@ install_reset_helper() {
     rm -f /etc/sudoers.d/photodash-reset
     echo "WARNING: photodash-reset sudoers fragment failed validation; installed binary only."
   fi
+}
+
+install_kiosk_watchdog() {
+  log "Installing continuous kiosk watchdog daemon"
+  install -m 755 "$REPO_ROOT/scripts/photodash-kiosk-watchdog.sh" /usr/local/sbin/photodash-kiosk-watchdog
+  install -m 644 "$REPO_ROOT/deploy/photodash-kiosk-watchdog.service" \
+    /etc/systemd/system/photodash-kiosk-watchdog.service
+  mkdir -p /var/lib/photodash
+  # photodash writes the heartbeat file; root/watchdog reads it.
+  if id photodash >/dev/null 2>&1; then
+    chown photodash:photodash /var/lib/photodash
+  fi
+
+  # earlyoom: kill Chromium before the kernel OOM-locks the whole machine.
+  if [[ -f "$REPO_ROOT/deploy/earlyoom.default" ]] && command -v earlyoom >/dev/null 2>&1; then
+    install -m 644 "$REPO_ROOT/deploy/earlyoom.default" /etc/default/earlyoom
+    systemctl enable --now earlyoom.service 2>/dev/null || true
+  fi
+
+  # Hardware/runtime watchdog: reboot if userspace stops feeding systemd.
+  if [[ -f "$REPO_ROOT/deploy/photodash-runtime-watchdog.conf" ]]; then
+    install -d /etc/systemd/system.conf.d
+    install -m 644 "$REPO_ROOT/deploy/photodash-runtime-watchdog.conf" \
+      /etc/systemd/system.conf.d/photodash-watchdog.conf
+    # Raspberry Pi bcm watchdog (ignore if module absent on non-Pi).
+    modprobe bcm2835_wdt 2>/dev/null || modprobe raspberrypi_wdt 2>/dev/null || true
+    if [[ -f /boot/firmware/config.txt ]] && ! grep -q '^dtparam=watchdog=on' /boot/firmware/config.txt 2>/dev/null; then
+      echo 'dtparam=watchdog=on' >> /boot/firmware/config.txt
+      echo "NOTE: enabled dtparam=watchdog=on (takes effect after next reboot)"
+    elif [[ -f /boot/config.txt ]] && ! grep -q '^dtparam=watchdog=on' /boot/config.txt 2>/dev/null; then
+      echo 'dtparam=watchdog=on' >> /boot/config.txt
+      echo "NOTE: enabled dtparam=watchdog=on (takes effect after next reboot)"
+    fi
+  fi
+
+  # Enable the memory cgroup so systemd MemoryMax actually works.
+  # Raspberry Pi OS often ships without it → MemoryMax is a silent no-op.
+  for cmdline in /boot/firmware/cmdline.txt /boot/cmdline.txt; do
+    if [[ -f "$cmdline" ]]; then
+      if ! grep -q 'cgroup_enable=memory' "$cmdline"; then
+        # cmdline.txt is a single line of kernel args.
+        sed -i 's/$/ cgroup_enable=memory cgroup_memory=1/' "$cmdline"
+        echo "NOTE: added cgroup_enable=memory to $cmdline (needs reboot for MemoryMax)"
+      fi
+      break
+    fi
+  done
+
+  systemctl daemon-reload
+  # Migrate off the old oneshot timer if present.
+  systemctl disable --now photodash-kiosk-watchdog.timer 2>/dev/null || true
+  rm -f /etc/systemd/system/photodash-kiosk-watchdog.timer
+  systemctl enable --now photodash-kiosk-watchdog.service
 }
 
 install_packages

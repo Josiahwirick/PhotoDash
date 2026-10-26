@@ -92,14 +92,14 @@ def build_frame_payload() -> dict:
         )
 
     interval = parse_bounded_int(
-        settings_model.get("photo_interval_seconds", "30"),
-        default=30,
+        settings_model.get("photo_interval_seconds", "45"),
+        default=45,
         minimum=5,
         maximum=600,
     )
     poll = parse_bounded_int(
-        settings_model.get("frame_poll_seconds", "60"),
-        default=60,
+        settings_model.get("frame_poll_seconds", "120"),
+        default=120,
         minimum=10,
         maximum=600,
     )
@@ -110,7 +110,7 @@ def build_frame_payload() -> dict:
         "photos": [
             {
                 "id": p["id"],
-                "url": f"/media/{p['filename']}",
+                "url": f"/media/{p['filename']}?size=frame",
             }
             for p in photos
         ],

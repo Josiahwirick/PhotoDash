@@ -22,6 +22,11 @@
   let pollMs = Math.max(10, Number(frame.dataset.poll || 60)) * 1000;
   let cycleTimer = null;
 
+  let lastCalendarSig = "";
+  // Watchdog liveness counters (raf advances every animation frame).
+  let rafSeq = 0;
+  let photoTick = 0;
+
   function shuffleInPlace(arr) {
     for (let i = arr.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -114,6 +119,7 @@
       return;
     }
     setActive(photo.url);
+    photoTick += 1;
   }
 
   function restartCycle(seconds) {
@@ -126,8 +132,19 @@
     cycleTimer = setInterval(tick, intervalMs);
   }
 
+  function calendarSignature(days) {
+    try {
+      return JSON.stringify(days);
+    } catch (_) {
+      return "";
+    }
+  }
+
   function renderCalendar(days) {
     if (!calendar || !Array.isArray(days)) return;
+    const sig = calendarSignature(days);
+    if (sig && sig === lastCalendarSig) return;
+    lastCalendarSig = sig;
     calendar.innerHTML = days
       .map(function (day) {
         const weather = day.weather
@@ -283,4 +300,43 @@
   rebuildQueue();
   let pollTimer = setInterval(poll, pollMs);
   restartCycle();
+
+  // --- liveness for the kiosk watchdog ---
+  // raf_seq advances only via requestAnimationFrame (stops if the main thread
+  // is wedged). photo_tick advances on each photo change.
+
+  function frameDomOk() {
+    const days = document.getElementById("calendar-days");
+    const root = document.getElementById("frame");
+    if (!days || !root) return false;
+    if (!days.children || days.children.length < 1) return false;
+    const rect = root.getBoundingClientRect();
+    if (rect.width < 100 || rect.height < 100) return false;
+    if (document.visibilityState && document.visibilityState === "hidden") return false;
+    return true;
+  }
+
+  function rafPulse() {
+    rafSeq += 1;
+    window.requestAnimationFrame(rafPulse);
+  }
+  window.requestAnimationFrame(rafPulse);
+
+  function sendKioskHeartbeat() {
+    const body = JSON.stringify({
+      dom_ok: frameDomOk(),
+      raf_seq: rafSeq,
+      photo_tick: photoTick,
+    });
+    fetch("/api/kiosk-heartbeat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: body,
+      keepalive: true,
+    }).catch(function () {});
+  }
+  // Heartbeat often enough that the watchdog sees raf advance every check,
+  // but not so often we burn CPU on a Pi 3B+.
+  sendKioskHeartbeat();
+  setInterval(sendKioskHeartbeat, 10000);
 })();

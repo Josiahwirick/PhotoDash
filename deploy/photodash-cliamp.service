@@ -29,6 +29,10 @@ ExecStart=/usr/local/bin/cliamp --daemon --auto-play --vol=0 --no-help-bar http:
 ExecStartPost=+/bin/sh -c 'for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do sock=/var/lib/photodash/cliamp/cliamp.sock; if [ -S "$sock" ]; then chgrp photodash "$sock" && chmod 660 "$sock" && exit 0; fi; sleep 0.5; done; exit 0'
 Restart=on-failure
 RestartSec=8
+MemoryAccounting=yes
+MemoryHigh=80M
+MemoryMax=120M
+OOMPolicy=stop
 
 [Install]
 WantedBy=multi-user.target

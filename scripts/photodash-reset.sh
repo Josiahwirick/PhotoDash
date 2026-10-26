@@ -61,7 +61,21 @@ fix_cliamp_socket() {
 
 if [[ "$KIOSK_ONLY" -eq 1 ]]; then
   log "Restarting kiosk only"
-  systemctl restart photodash-kiosk.service
+  systemctl stop photodash-kiosk.service 2>/dev/null || true
+  sleep 1
+  ku="$(id -un pi 2>/dev/null || echo pi)"
+  # Old fbi slideshow (bashrc leftover) fights Chromium for the framebuffer.
+  pkill -u "$ku" -x fbi 2>/dev/null || true
+  pkill -u "$ku" -f '[c]hromium' 2>/dev/null || true
+  pkill -u "$ku" -f '[X]org' 2>/dev/null || true
+  sleep 1
+  pkill -9 -u "$ku" -f '[c]hromium' 2>/dev/null || true
+  pkill -9 -u "$ku" -f '[X]org' 2>/dev/null || true
+  rm -f /tmp/.X0-lock /tmp/.X11-unix/X0 2>/dev/null || true
+  rm -f /var/lib/photodash/kiosk-heartbeat
+  date -u +%Y-%m-%dT%H:%M:%SZ >/var/lib/photodash/kiosk-watchdog-last-restart 2>/dev/null || true
+  systemctl reset-failed photodash-kiosk.service 2>/dev/null || true
+  systemctl start photodash-kiosk.service
   log "Done."
   exit 0
 fi
@@ -108,6 +122,9 @@ if systemctl cat photodash-kiosk.service >/dev/null 2>&1; then
   pkill -u "$(id -un pi 2>/dev/null || echo pi)" -f '[c]hromium' 2>/dev/null || true
   pkill -u "$(id -un pi 2>/dev/null || echo pi)" -f '[X]org|[X]wayland|X :0' 2>/dev/null || true
   sleep 1
+  # Clear stale heartbeat so the watchdog boot-grace window is meaningful.
+  rm -f /var/lib/photodash/kiosk-heartbeat
+  date -u +%Y-%m-%dT%H:%M:%SZ >/var/lib/photodash/kiosk-watchdog-last-restart 2>/dev/null || true
   systemctl reset-failed photodash-kiosk.service 2>/dev/null || true
   systemctl start photodash-kiosk.service
   sleep 2

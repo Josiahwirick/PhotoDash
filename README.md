@@ -52,6 +52,19 @@ sudo photodash-reset
 
 Or DM the Discord bot `reset frame`, or use **Admin → Settings → Reset frame**.
 
+A continuous **kiosk watchdog** (`photodash-kiosk-watchdog.service`) watches Chromium/X,
+frame rAF heartbeats, memory pressure, and CLIAMP. It soft-resets the kiosk (and escalates
+if needed) without rebooting when it can. Install also enables earlyoom and a systemd
+runtime watchdog as last-resort protection on hard freezes.
+Logs: `journalctl -u photodash-kiosk-watchdog -f`.
+
+### Pi performance notes
+
+Tuned for Raspberry Pi 3B+ / ~1GB boards: Chromium launched without the Debian wrapper,
+720px photo variants, lofi visualizer at ~2 FPS, cgroup memory caps, and 1GB swap.
+Prefer a longer **photo interval** / **frame poll** under Admin → Settings if the kiosk
+still feels heavy.
+
 ## Webhook (people & calendar without admin UI)
 
 `POST /api/webhook` accepts structured JSON and/or free-text. Authenticate with:
@@ -163,6 +176,7 @@ pytest -q
 
 - `photodash.service` — gunicorn on `:8080`
 - `photodash-kiosk.service` — `xinit` → Chromium `--kiosk` (after app)
+- `photodash-kiosk-watchdog.service` — continuous durability watchdog (kiosk/heartbeat/mem/CLIAMP)
 - `photodash-discord.service` — Discord bot (optional)
 - `photodash-cliamp.service` — headless CLIAMP lofi stream (optional)
 

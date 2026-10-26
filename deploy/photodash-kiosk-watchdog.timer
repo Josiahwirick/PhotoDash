@@ -1,0 +1,14 @@
+# Deprecated: watchdog now runs as a long-lived service
+# (photodash-kiosk-watchdog.service --daemon). Kept only so upgrades can
+# disable/remove it; install.sh deletes this unit.
+[Unit]
+Description=DEPRECATED PhotoDash kiosk watchdog timer (use the service instead)
+ConditionPathExists=!/usr/local/sbin/photodash-kiosk-watchdog
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=1min
+Unit=photodash-kiosk-watchdog.service
+
+[Install]
+WantedBy=timers.target
